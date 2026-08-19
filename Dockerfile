@@ -12,6 +12,6 @@ COPY src/ ./src/
 RUN npm run build
 
 ENV NODE_ENV=production
-EXPOSE 3000
+EXPOSE 10000
 
 CMD ["node", "dist/bot.js"]
