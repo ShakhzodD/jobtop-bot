@@ -133,9 +133,11 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     });
   });
 
-  // Apply for job: Sends candidate info, phone number & username to employer
+  // Apply for job: If openings > 1, prompt for party size (Solo vs Group)
   mainBot.callbackQuery(/^worker:apply:(.+):(.+):(\d+)$/, async (ctx) => {
     const jobId = ctx.match[1];
+    const categoryParam = ctx.match[2];
+    const offset = ctx.match[3];
     const telegramId = ctx.from.id;
 
     const user = await getUserByTelegramId(telegramId);
@@ -156,18 +158,96 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       return;
     }
 
-    const res = await applyForJob(jobId, user.id);
+    // Check remaining open spots
+    const { data: selectedApps } = await supabase
+      .from("applications")
+      .select("party_size")
+      .eq("job_id", jobId)
+      .eq("status", "selected");
+
+    const filledCount = (selectedApps || []).reduce((acc, a) => acc + (a.party_size || 1), 0);
+    const remainingSpots = Math.max(job.openings - filledCount, 1);
+
+    // If job has 2+ open spots, ask how many workers they are applying for!
+    if (job.openings > 1 && remainingSpots > 1) {
+      await ctx.answerCallbackQuery();
+
+      const partyKeyboard = new InlineKeyboard();
+      partyKeyboard.text("👤 Faqat o‘zim (1 kishi)", `worker:apply_p:${jobId}:1:${categoryParam}:${offset}`).row();
+
+      for (let count = 2; count <= Math.min(remainingSpots, 6); count++) {
+        partyKeyboard.text(
+          `👥 ${count} kishi (${count === job.openings ? "To‘liq guruh" : "Sheriklarim bilan"})`,
+          `worker:apply_p:${jobId}:${count}:${categoryParam}:${offset}`
+        );
+        if (count % 2 === 1) partyKeyboard.row();
+      }
+
+      if (!partyKeyboard.inline_keyboard[partyKeyboard.inline_keyboard.length - 1].some(b => b.text.includes("Ortga"))) {
+        partyKeyboard.row();
+      }
+      partyKeyboard.text("🔙 Ortga", `worker:feed:${categoryParam}:${offset}`);
+
+      await ctx.editMessageText(
+        `👥 <b>Necha kishi bo‘lib ishlamoqchisiz?</b>\n\n` +
+          `📌 <b>E’lon:</b> ${job.title}\n` +
+          `🏢 <b>Bo‘sh o‘rinlar:</b> ${remainingSpots} ta\n` +
+          `💰 <b>Kunlik haq:</b> ${job.pay_amount.toLocaleString()} so‘m (har bir kishi uchun)\n\n` +
+          `O‘zingiz yolg‘iz yoki sheriklaringiz bilan birga ariza topshirishingiz mumkin:`,
+        {
+          parse_mode: "HTML",
+          reply_markup: partyKeyboard,
+        }
+      );
+      return;
+    }
+
+    // If 1 opening, apply directly as 1 person
+    await applyWorkerWithPartySize(ctx, job, user, 1);
+  });
+
+  // Apply with specified party size
+  mainBot.callbackQuery(/^worker:apply_p:(.+):(\d+):(.+):(\d+)$/, async (ctx) => {
+    const jobId = ctx.match[1];
+    const partySize = parseInt(ctx.match[2], 10) || 1;
+    const telegramId = ctx.from.id;
+
+    const user = await getUserByTelegramId(telegramId);
+    if (!user) return;
+
+    const job = await getJobById(jobId);
+    if (!job) {
+      await ctx.answerCallbackQuery({ text: "E’lon topilmadi." });
+      return;
+    }
+
+    await applyWorkerWithPartySize(ctx, job, user, partySize);
+  });
+
+  async function applyWorkerWithPartySize(
+    ctx: any,
+    job: DBJob,
+    user: any,
+    partySize: number
+  ) {
+    const res = await applyForJob(job.id, user.id, partySize);
     if (!res.success) {
       await ctx.answerCallbackQuery({ text: res.message, show_alert: true });
       return;
     }
 
     await ctx.answerCallbackQuery({
-      text: "✅ Arizangiz ish beruvchiga yuborildi!",
+      text: `✅ Arizangiz (${partySize} kishi uchun) yuborildi!`,
       show_alert: true,
     });
 
-    // Check if profile is incomplete and send a friendly tip
+    const partyText = partySize > 1 ? ` (${partySize} kishilik guruh)` : "";
+    await ctx.reply(
+      `✅ <b>Arizangiz muvaffaqiyatli qabul qilindi!</b>${partyText}\n\nIsh beruvchi arizangizni ko‘rib chiqib, javob berishi bilan sizga xabar beramiz.`,
+      { parse_mode: "HTML" }
+    );
+
+    // Profile Completion Tip
     const { percent, isComplete } = getProfileCompletionStatus(user);
     if (!isComplete && percent < 75) {
       const tipKeyboard = new InlineKeyboard().text(
@@ -184,7 +264,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       );
     }
 
-    // Notify Employer immediately in Telegram with full Candidate info!
+    // Notify Employer in Telegram
     if (job.employer_id) {
       try {
         const { data: empData } = await supabase
@@ -201,30 +281,39 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
             ? `@${user.telegram_username}`
             : null;
 
+          const totalPay = job.pay_amount * partySize;
+
           const applicantText = [
-            "🔔 <b>E’loningizga yangi nomzod qiziqish bildirdi!</b>",
+            "🔔 <b>E’loningizga yangi ariza tushdi!</b>",
             "",
             `📌 <b>E’lon:</b> ${job.title}`,
-            `👤 <b>Nomzod:</b> ${user.full_name}`,
+            `👤 <b>Mas’ul nomzod:</b> ${user.full_name}`,
+            partySize > 1
+              ? `👥 <b>Ishchilar soni:</b> <b>${partySize} kishi</b> (Sheriklari / Guruh bilan)`
+              : `👥 <b>Ishchilar soni:</b> 1 kishi (Yakkaxon)`,
+            partySize > 1 ? `💰 <b>Jami to‘lov:</b> ${totalPay.toLocaleString()} so‘m (${job.pay_amount.toLocaleString()} so‘mdan)` : "",
             `⭐️ <b>Reytingi:</b> ${userRating.starsStr}`,
             user.phone ? `📞 <b>Telefon:</b> <code>${user.phone}</code>` : "",
             usernameStr ? `💬 <b>Telegram:</b> ${usernameStr}` : "",
             user.district ? `📍 <b>Tuman:</b> ${user.district}` : "",
-            user.experience_years !== null ? `💼 <b>Tajriba:</b> ${user.experience_years} yil` : "",
+            typeof user.experience_years === "number" ? `💼 <b>Tajriba:</b> ${user.experience_years} yil` : "",
             user.about ? `📝 <b>Ma’lumot:</b> ${user.about}` : "",
             "",
-            "Nomzodni ishga qabul qilasizmi?",
+            `Nomzodni (${partySize} kishini) ishga qabul qilasizmi?`,
           ]
             .filter(Boolean)
             .join("\n");
 
           const empKeyboard = new InlineKeyboard()
-            .text("✅ Tanlash (Qabul qilish)", `emp:select:${res.application!.id}`)
+            .text(
+              partySize > 1 ? `✅ ${partySize} kishini qabul qilish` : "✅ Qabul qilish",
+              `emp:select:${res.application!.id}`
+            )
             .text("❌ Rad etish", `emp:reject:${res.application!.id}`);
 
           if (usernameStr) {
             const rawUsername = usernameStr.replace(/^@/, "");
-            empKeyboard.row().url("✉️ Nomzodga Telegramdan yozish", `https://t.me/${rawUsername}`);
+            empKeyboard.row().url("✉️ Mas’ulga Telegramdan yozish", `https://t.me/${rawUsername}`);
           }
 
           await mainBot.api.sendMessage(empData.telegram_id, applicantText, {
@@ -236,7 +325,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
         console.error("Failed to notify employer about applicant:", e);
       }
     }
-  });
+  }
 
   // View my applications
   mainBot.hears("📄 Mening arizalarim", async (ctx) => {
@@ -275,8 +364,10 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       const app = activeApps[i];
       const job = app.job;
       const status = statusLabels[app.status] || app.status;
+      const partySize = (app as any).party_size || 1;
 
       let msg = `<b>${i + 1}. ${job?.title || "E’lon"}</b>\n`;
+      msg += `👥 <b>Arizadagi ishchilar soni:</b> ${partySize} kishi\n`;
       msg += `💰 Haq: ${job?.pay_amount ? `${job.pay_amount.toLocaleString()} so‘m` : "Kelishilgan"}\n`;
       msg += `📍 Manzil: ${job?.district || ""}, ${job?.address || ""}\n`;
       msg += `Holati: <b>${status}</b>\n`;
@@ -426,7 +517,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       `📱 <b>Telefon:</b> ${user.phone || "Kiritilmagan"}`,
       `📍 <b>Tuman:</b> ${user.district || "Kiritilmagan"}`,
       `💼 <b>Tajriba:</b> ${
-        user.experience_years !== null && user.experience_years !== undefined
+        typeof user.experience_years === "number" && user.experience_years !== undefined
           ? `${user.experience_years} yil`
           : "Kiritilmagan"
       }`,

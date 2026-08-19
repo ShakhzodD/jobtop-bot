@@ -8,6 +8,7 @@ export interface DBApplication {
   id: string;
   job_id: string;
   worker_id: string;
+  party_size: number;
   note: string | null;
   status: ApplicationStatus;
   created_at: string;
@@ -18,6 +19,7 @@ export interface DBApplication {
 export async function applyForJob(
   jobId: string,
   workerUserId: string,
+  partySize = 1,
   note?: string
 ): Promise<{ success: boolean; message: string; application?: DBApplication }> {
   // Check if already applied
@@ -45,7 +47,7 @@ export async function applyForJob(
       // Re-apply if previously withdrawn
       const { data: updated, error: updateError } = await supabase
         .from("applications")
-        .update({ status: "pending", note: note ?? null })
+        .update({ status: "pending", party_size: partySize, note: note ?? null })
         .eq("id", existing.id)
         .select("*, worker:users!worker_id(*), job:jobs!job_id(*)")
         .single();
@@ -70,6 +72,7 @@ export async function applyForJob(
     .insert({
       job_id: jobId,
       worker_id: workerUserId,
+      party_size: partySize,
       note: note ?? null,
       status: "pending",
     })
@@ -109,7 +112,6 @@ export async function withdrawApplication(
   return { success: true, message: "Arizangiz muvaffaqiyatli bekor qilindi." };
 }
 
-// Cancel accepted job by worker (reopens the job opening if it was filled)
 export async function cancelAcceptedApplication(
   applicationId: string,
   workerUserId: string,
@@ -137,15 +139,18 @@ export async function cancelAcceptedApplication(
   let reopenedJob = false;
 
   if (job) {
-    // Check remaining selected count
-    const { count: selectedCount } = await supabase
+    // Check remaining selected count considering party sizes
+    const { data: selectedApps } = await supabase
       .from("applications")
-      .select("*", { count: "exact", head: true })
+      .select("party_size")
       .eq("job_id", job.id)
       .eq("status", "selected");
 
-    const currentSelected = selectedCount ?? 0;
-    // If job was filled and now currentSelected < openings, reopen it!
+    const currentSelected = (selectedApps || []).reduce(
+      (acc, item) => acc + (item.party_size || 1),
+      0
+    );
+
     if (job.status === "filled" && currentSelected < job.openings) {
       await updateJobStatus(job.id, "published");
       reopenedJob = true;
@@ -208,17 +213,19 @@ export async function selectApplication(
   const jobId = app.job_id;
   const openings = app.job?.openings || 1;
 
-  // Count total selected workers for this job
-  const { count: selectedCount } = await supabase
+  // Sum up all selected party_sizes
+  const { data: selectedApps } = await supabase
     .from("applications")
-    .select("*", { count: "exact", head: true })
+    .select("party_size")
     .eq("job_id", jobId)
     .eq("status", "selected");
 
-  const totalSelected = selectedCount ?? 1;
+  const totalSelected = (selectedApps || []).reduce(
+    (acc, item) => acc + (item.party_size || 1),
+    0
+  );
   const isJobFilled = totalSelected >= openings;
 
-  // If openings reached, auto-update job status to 'filled'!
   if (isJobFilled) {
     await updateJobStatus(jobId, "filled");
   }

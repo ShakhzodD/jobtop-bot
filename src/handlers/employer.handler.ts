@@ -60,7 +60,8 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
     for (const job of jobs.slice(0, 10)) {
       const applications = await getJobApplications(job.id);
       const pendingCount = applications.filter((a) => a.status === "pending").length;
-      const selectedCount = applications.filter((a) => a.status === "selected").length;
+      const selectedApps = applications.filter((a) => a.status === "selected");
+      const selectedCount = selectedApps.reduce((acc, a) => acc + (a.party_size || 1), 0);
 
       const jobCard = [
         `📌 <b>${job.title}</b>`,
@@ -94,10 +95,11 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
     }
   });
 
-  // 3. View Applicants with Rating
+  // 3. View Applicants with Group Info
   mainBot.callbackQuery(/^emp:apps:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const jobId = ctx.match[1];
+    const job = await getJobById(jobId);
     const applications = await getJobApplications(jobId);
 
     if (applications.length === 0) {
@@ -108,14 +110,22 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
     for (const app of applications) {
       const worker = app.worker;
       const workerRating = worker ? await getUserRating(worker.id) : null;
+      const partySize = app.party_size || 1;
+      const totalPay = job ? job.pay_amount * partySize : null;
 
       const appText = [
         `👤 <b>Nomzod:</b> ${worker?.full_name || "Noma'lum"}`,
+        partySize > 1
+          ? `👥 <b>Keluvchilar soni:</b> <b>${partySize} kishi</b> (Sheriklari bilan)`
+          : `👥 <b>Keluvchilar soni:</b> 1 kishi`,
+        totalPay && partySize > 1
+          ? `💰 <b>Jami to‘lov:</b> ${totalPay.toLocaleString()} so‘m`
+          : "",
         workerRating ? `⭐️ <b>Reytingi:</b> ${workerRating.starsStr}` : "",
         worker?.phone ? `📞 <b>Telefon:</b> <code>${worker.phone}</code>` : "",
         worker?.telegram_username ? `💬 <b>Telegram:</b> @${worker.telegram_username}` : "",
         worker?.district ? `📍 <b>Tuman:</b> ${worker.district}` : "",
-        worker?.experience_years ? `💼 <b>Tajriba:</b> ${worker.experience_years} yil` : "",
+        typeof worker?.experience_years === "number" ? `💼 <b>Tajriba:</b> ${worker.experience_years} yil` : "",
         worker?.about ? `📝 <b>Ma’lumot:</b> ${worker.about}` : "",
         app.note ? `💬 <b>Izoh:</b> ${app.note}` : "",
         `Holati: <b>${
@@ -132,7 +142,10 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
       const keyboard = new InlineKeyboard();
       if (app.status === "pending") {
         keyboard
-          .text("✅ Tanlash", `emp:select:${app.id}`)
+          .text(
+            partySize > 1 ? `✅ ${partySize} kishini qabul qilish` : "✅ Qabul qilish",
+            `emp:select:${app.id}`
+          )
           .text("❌ Rad etish", `emp:reject:${app.id}`);
       }
 
@@ -150,7 +163,7 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
     }
   });
 
-  // 4. Select Candidate (With Auto-Fill Trigger)
+  // 4. Select Candidate with Group & Share Button
   mainBot.callbackQuery(/^emp:select:(.+)$/, async (ctx) => {
     const appId = ctx.match[1];
     const { application: app, isJobFilled, selectedCount, openings } =
@@ -171,34 +184,67 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
 
     const worker = app.worker;
     const job = app.job;
+    const partySize = app.party_size || 1;
+    const workerName = worker?.full_name || "Nomzod";
 
     let responseMsg =
-      `🎉 <b>Siz nomzodni ishga tanladingiz!</b>\n\n` +
-      `👤 <b>Ishchi:</b> ${worker?.full_name}\n` +
+      `🎉 <b>Siz ${partySize > 1 ? `${workerName} boshchiligidagi ${partySize} kishini` : workerName} ishga tanladingiz!</b>\n\n` +
+      `👤 <b>Mas’ul ishchi:</b> ${workerName}\n` +
       `📞 <b>Telefon raqami:</b> <code>${worker?.phone || "Mavjud emas"}</code>\n` +
       (worker?.telegram_username ? `💬 <b>Telegram:</b> @${worker.telegram_username}\n` : "") +
-      `\nTanlangan ishchilar: <b>${selectedCount}/${openings} ta</b>.`;
+      `\nTanlangan jami ishchilar: <b>${selectedCount}/${openings} ta</b>.`;
 
     if (isJobFilled) {
-      responseMsg += `\n\n🎊 <b>Barcha kerakli ishchilar soni to‘ldi!</b> E’lon avtomatik ravishda to‘lganlar qatoriga o‘tkazildi va lentadan yashirildi.`;
+      responseMsg += `\n\n🎊 <b>Barcha kerakli ishchilar soni to‘ldi!</b> E’lon avtomatik ravishda to‘lganlar qatoriga o‘tkazildi va qidiruvdan olindi.`;
     }
 
     await ctx.reply(responseMsg, { parse_mode: "HTML" });
 
-    // Notify Worker
+    // Notify Worker with details & Share Button for their crew!
     if (worker?.telegram_id) {
       try {
         const employer = (job as any)?.employer;
-        await mainBot.api.sendMessage(
-          worker.telegram_id,
-          `🎉 <b>Xushxabar! Ish beruvchi sizni ishga tanladi!</b>\n\n` +
-            `📌 <b>E’lon:</b> ${job?.title}\n` +
-            `🏢 <b>Ish beruvchi:</b> ${employer?.full_name || "Ish beruvchi"}\n` +
-            `📞 <b>Telefon raqami:</b> <code>${employer?.phone || "Mavjud emas"}</code>\n` +
-            (employer?.telegram_username ? `💬 <b>Telegram:</b> @${employer.telegram_username}\n` : "") +
-            `\nIsh beruvchi siz bilan bog‘lanadi yoki siz unga qo‘ng‘iroq qilishingiz mumkin. Omad! 🤝`,
-          { parse_mode: "HTML" }
-        );
+        const totalPay = (job?.pay_amount || 0) * partySize;
+        const startsAtFormatted = job?.starts_at
+          ? new Date(job.starts_at).toLocaleString("uz-UZ", {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "Kelishilgan vaqtda";
+
+        const workerNotifyText = [
+          `🎉 <b>Xushxabar! Ish beruvchi sizni ${partySize > 1 ? `(${partySize} kishi uchun)` : ""} ishga qabul qildi!</b>`,
+          "",
+          `📌 <b>E’lon:</b> ${job?.title}`,
+          `📍 <b>Manzil:</b> ${job?.district || ""}, ${job?.address || ""}`,
+          `🕒 <b>Vaqt:</b> ${startsAtFormatted}`,
+          `💰 <b>Haq:</b> ${job?.pay_amount.toLocaleString()} so‘m (bir kishi uchun)` +
+            (partySize > 1 ? ` (Jami ${partySize} kishi uchun: <b>${totalPay.toLocaleString()} so‘m</b>)` : ""),
+          `🏢 <b>Ish beruvchi:</b> ${employer?.full_name || "Ish beruvchi"}`,
+          `📞 <b>Telefon raqami:</b> <code>${employer?.phone || "Mavjud emas"}</code>`,
+          employer?.telegram_username ? `💬 <b>Telegram:</b> @${employer.telegram_username}` : "",
+          "",
+          partySize > 1
+            ? `💡 <i>Pastdagi tugma orqali ish manzili va vaqtini Telegramdagi sheriklaringizga darhol yuborishingiz mumkin:</i>`
+            : `Ish beruvchi siz bilan bog‘lanadi yoki siz unga qo‘ng‘iroq qilishingiz mumkin. Omad! 🤝`,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const workerKb = new InlineKeyboard();
+
+        if (partySize > 1) {
+          const shareText = `JobTop orqali ish topildi:\n📌 Ish: ${job?.title}\n📍 Manzil: ${job?.district}, ${job?.address}\n🕒 Vaqt: ${startsAtFormatted}\n💰 Kunlik haq: ${job?.pay_amount.toLocaleString()} so‘mdan\n👤 Ish beruvchi: ${employer?.full_name} (${employer?.phone || ""})`;
+          const shareUrl = `https://t.me/share/url?url=${encodeURIComponent("https://t.me/jobtopuzbot")}&text=${encodeURIComponent(shareText)}`;
+          workerKb.url("📤 Manzilni sheriklarga yuborish", shareUrl);
+        }
+
+        await mainBot.api.sendMessage(worker.telegram_id, workerNotifyText, {
+          parse_mode: "HTML",
+          reply_markup: partySize > 1 ? workerKb : undefined,
+        });
       } catch (e) {
         console.error("Failed to notify worker:", e);
       }
@@ -287,7 +333,7 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
         .text("⭐️ 5", `emp:rate:${jobId}:${worker.id}:5`);
 
       await ctx.reply(
-        `👤 <b>Ishchi:</b> ${worker.full_name}\n\nUshbu ishchining faoliyatini 1 dan 5 gacha baholang:`,
+        `👤 <b>Ishchi:</b> ${worker.full_name} (${app.party_size || 1} kishi)\n\nUshbu ishchining faoliyatini 1 dan 5 gacha baholang:`,
         {
           parse_mode: "HTML",
           reply_markup: rateKeyboard,
