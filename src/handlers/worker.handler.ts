@@ -1,6 +1,9 @@
 import { Bot, InlineKeyboard } from "grammy";
 import { MyContext } from "../types/context.js";
-import { getUserByTelegramId } from "../services/user.service.js";
+import {
+  getUserByTelegramId,
+  getProfileCompletionStatus,
+} from "../services/user.service.js";
 import { getPublishedJobs, getJobById, DBJob } from "../services/job.service.js";
 import {
   applyForJob,
@@ -161,6 +164,23 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
       show_alert: true,
     });
 
+    // Check if profile is incomplete and send a friendly tip
+    const { percent, isComplete } = getProfileCompletionStatus(user);
+    if (!isComplete && percent < 75) {
+      const tipKeyboard = new InlineKeyboard().text(
+        "✏️ Profilni to‘ldirish",
+        "worker:edit_profile"
+      );
+      await ctx.reply(
+        `💡 <b>Maslahat:</b> Profilingiz faqat <b>${percent}%</b> to‘ldirilgan.\n` +
+          `Ish beruvchilar to‘liq ma’lumotli nomzodlarni ancha ko‘proq tanlashadi!`,
+        {
+          parse_mode: "HTML",
+          reply_markup: tipKeyboard,
+        }
+      );
+    }
+
     // Notify Employer immediately in Telegram with full Candidate info!
     if (job.employer_id) {
       try {
@@ -259,7 +279,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
     await ctx.reply(msg, { parse_mode: "HTML" });
   });
 
-  // View Profile
+  // View Profile: Shows completion bar & missing fields
   bot.hears("👤 Mening profilim", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
@@ -270,16 +290,33 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
       return;
     }
 
+    const { percent, isComplete, missing } = getProfileCompletionStatus(user);
+
+    // Progress bar visualization: e.g. [🟩🟩⬜️⬜️] 50%
+    const totalBars = 4;
+    const filledBars = Math.round((percent / 100) * totalBars);
+    const barStr = "🟩".repeat(filledBars) + "⬜️".repeat(totalBars - filledBars);
+
     const profileText = [
       `👤 <b>Mening profilim:</b>`,
+      "",
+      `📊 <b>Profil to‘liqligi:</b> [${barStr}] <b>${percent}%</b>`,
+      !isComplete
+        ? `⚠️ <i>To‘ldirilmagan: ${missing.join(", ")}</i>`
+        : "✅ <i>Profilingiz to‘liq to‘ldirilgan!</i>",
       "",
       `📛 <b>Ism:</b> ${user.full_name}`,
       `📱 <b>Telefon:</b> ${user.phone || "Kiritilmagan"}`,
       `📍 <b>Tuman:</b> ${user.district || "Kiritilmagan"}`,
-      `💼 <b>Tajriba:</b> ${user.experience_years ? `${user.experience_years} yil` : "Kiritilmagan"}`,
-      `📂 <b>Kategoriyalar:</b> ${user.worker_categories?.join(", ") || "Belgilanmagan"}`,
+      `💼 <b>Tajriba:</b> ${
+        user.experience_years !== null && user.experience_years !== undefined
+          ? `${user.experience_years} yil`
+          : "Kiritilmagan"
+      }`,
       `📝 <b>Haqida:</b> ${user.about || "Kiritilmagan"}`,
-      `🔄 <b>Faol rol:</b> ${user.active_role === "employer" ? "💼 Ish beruvchi" : "👷 Ishchi"}`,
+      `🔄 <b>Faol rol:</b> ${
+        user.active_role === "employer" ? "💼 Ish beruvchi" : "👷 Ishchi"
+      }`,
     ].join("\n");
 
     const keyboard = new InlineKeyboard().text(

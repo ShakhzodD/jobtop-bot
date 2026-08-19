@@ -17,6 +17,28 @@ export interface DBUser {
   created_at: string;
 }
 
+export function getProfileCompletionStatus(user: DBUser) {
+  const fields = [
+    { name: "Telefon", value: Boolean(user.phone), weight: 25 },
+    { name: "Yashash tumani", value: Boolean(user.district), weight: 25 },
+    {
+      name: "Ish tajribasi",
+      value: user.experience_years !== null && user.experience_years !== undefined,
+      weight: 25,
+    },
+    { name: "O‘zingiz haqingizda ma’lumot", value: Boolean(user.about), weight: 25 },
+  ];
+
+  const percent = fields.reduce((acc, f) => acc + (f.value ? f.weight : 0), 0);
+  const missing = fields.filter((f) => !f.value).map((f) => f.name);
+
+  return {
+    percent,
+    isComplete: percent === 100,
+    missing,
+  };
+}
+
 export async function getUserByTelegramId(telegramId: number): Promise<DBUser | null> {
   const { data, error } = await supabase
     .from("users")

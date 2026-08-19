@@ -1,9 +1,10 @@
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import {
   getUserByTelegramId,
   upsertUser,
   setActiveRole,
+  getProfileCompletionStatus,
 } from "../services/user.service.js";
 import { roleSelectionKeyboard, contactRequestKeyboard } from "../keyboards/auth.js";
 import { getWorkerMainMenu, getEmployerMainMenu } from "../keyboards/main-menu.js";
@@ -123,6 +124,27 @@ export function registerStartHandlers(bot: Bot<MyContext>) {
         reply_markup: menu,
       }
     );
+
+    // Profile Completion Prompt for Workers
+    if (user.active_role === "worker") {
+      const { percent } = getProfileCompletionStatus(user);
+      if (percent < 100) {
+        const promptKeyboard = new InlineKeyboard().text(
+          "✏️ Profilni to‘ldirish",
+          "worker:edit_profile"
+        );
+
+        await ctx.reply(
+          `💡 <b>Muhim maslahat:</b>\n\n` +
+            `Ish beruvchilar sizni tezroq tanlashi uchun profilingizni to‘ldiring (yashash tumani, ish tajribangiz va o‘zingiz haqingizda ma’lumot).\n\n` +
+            `To‘liq profilli ishchilar <b>3 barobar tezroq</b> ishga tanlanadi! 🚀`,
+          {
+            parse_mode: "HTML",
+            reply_markup: promptKeyboard,
+          }
+        );
+      }
+    }
   });
 
   // Switch role to Employer
