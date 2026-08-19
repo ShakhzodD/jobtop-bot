@@ -41,6 +41,7 @@ function renderJobCard(job: DBJob, index: number, total: number) {
 export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   // Feed / Ishlarni ko'rish
   mainBot.hears("🔍 Ishlarni ko‘rish", async (ctx) => {
+    await ctx.replyWithChatAction("typing").catch(() => {});
     const keyboard = new InlineKeyboard();
     keyboard.text("🌐 Barcha kategoriyalar", "worker:feed:all:0").row();
 
@@ -56,7 +57,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   // Browse Jobs Callback
   mainBot.callbackQuery(/^worker:feed:(.+):(\d+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery().catch(() => {});
     const categoryParam = ctx.match[1];
     const offset = parseInt(ctx.match[2], 10);
     const category = categoryParam === "all" ? undefined : categoryParam;
@@ -119,7 +120,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   });
 
   mainBot.callbackQuery("worker:back_categories", async (ctx) => {
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery().catch(() => {});
     const keyboard = new InlineKeyboard();
     keyboard.text("🌐 Barcha kategoriyalar", "worker:feed:all:0").row();
 
@@ -135,6 +136,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   // Apply for job: If openings > 1, prompt for party size (Solo vs Group)
   mainBot.callbackQuery(/^worker:apply:(.+):(.+):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const jobId = ctx.match[1];
     const categoryParam = ctx.match[2];
     const offset = ctx.match[3];
@@ -170,8 +172,6 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
     // If job has 2+ open spots, ask how many workers they are applying for!
     if (job.openings > 1 && remainingSpots > 1) {
-      await ctx.answerCallbackQuery();
-
       const partyKeyboard = new InlineKeyboard();
       partyKeyboard.text("👤 Faqat o‘zim (1 kishi)", `worker:apply_p:${jobId}:1:${categoryParam}:${offset}`).row();
 
@@ -208,6 +208,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   // Apply with specified party size
   mainBot.callbackQuery(/^worker:apply_p:(.+):(\d+):(.+):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const jobId = ctx.match[1];
     const partySize = parseInt(ctx.match[2], 10) || 1;
     const telegramId = ctx.from.id;
@@ -232,14 +233,10 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   ) {
     const res = await applyForJob(job.id, user.id, partySize);
     if (!res.success) {
-      await ctx.answerCallbackQuery({ text: res.message, show_alert: true });
+      await ctx.answerCallbackQuery({ text: res.message, show_alert: true }).catch(() => {});
+      await ctx.reply(`⚠️ ${res.message}`);
       return;
     }
-
-    await ctx.answerCallbackQuery({
-      text: `✅ Arizangiz (${partySize} kishi uchun) yuborildi!`,
-      show_alert: true,
-    });
 
     const partyText = partySize > 1 ? ` (${partySize} kishilik guruh)` : "";
     await ctx.reply(
@@ -329,6 +326,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   // View my applications
   mainBot.hears("📄 Mening arizalarim", async (ctx) => {
+    await ctx.replyWithChatAction("typing").catch(() => {});
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
@@ -392,14 +390,13 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   // Withdraw pending application
   mainBot.callbackQuery(/^worker:withdraw:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const appId = ctx.match[1];
     const telegramId = ctx.from.id;
     const user = await getUserByTelegramId(telegramId);
     if (!user) return;
 
     const res = await withdrawApplication(appId, user.id);
-    await ctx.answerCallbackQuery({ text: res.message });
-
     if (res.success) {
       await ctx.editMessageText("❌ Ushbu arizangiz bekor qilindi.");
     }
@@ -407,7 +404,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   // Prompt for cancellation reason when accepted
   mainBot.callbackQuery(/^worker:cancel_acc_prompt:(.+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery().catch(() => {});
     const appId = ctx.match[1];
 
     const keyboard = new InlineKeyboard()
@@ -430,6 +427,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   // Execute cancellation of accepted application
   mainBot.callbackQuery(/^worker:cancel_acc_do:(.+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const appId = ctx.match[1];
     const reason = ctx.match[2];
     const telegramId = ctx.from.id;
@@ -438,7 +436,6 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     if (!user) return;
 
     const res = await cancelAcceptedApplication(appId, user.id, reason);
-    await ctx.answerCallbackQuery({ text: res.message });
 
     await ctx.editMessageText(
       `🚫 <b>Ishga bora olmasligingiz belgilandi.</b>\nSabab: <i>${reason}</i>\nIsh beruvchiga bu haqda xabar yuborildi.`,
@@ -482,12 +479,13 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   // Cancel back
   mainBot.callbackQuery("worker:cancel_acc_back", async (ctx) => {
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery().catch(() => {});
     await ctx.editMessageText("Bekor qilish bekor qilindi. Omad!");
   });
 
   // View Profile: Shows rating, completion bar & categories
   mainBot.hears("👤 Mening profilim", async (ctx) => {
+    await ctx.replyWithChatAction("typing").catch(() => {});
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
@@ -517,7 +515,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       `📱 <b>Telefon:</b> ${user.phone || "Kiritilmagan"}`,
       `📍 <b>Tuman:</b> ${user.district || "Kiritilmagan"}`,
       `💼 <b>Tajriba:</b> ${
-        typeof user.experience_years === "number" && user.experience_years !== undefined
+        typeof user.experience_years === "number"
           ? `${user.experience_years} yil`
           : "Kiritilmagan"
       }`,
@@ -544,7 +542,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   });
 
   mainBot.callbackQuery("worker:edit_profile", async (ctx) => {
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery().catch(() => {});
     await ctx.conversation.enter("editProfileConversation");
   });
 }

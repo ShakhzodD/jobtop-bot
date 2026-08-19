@@ -31,6 +31,7 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
 
   // 2. My Jobs
   mainBot.hears("📋 Mening e’lonlarim", async (ctx) => {
+    await ctx.replyWithChatAction("typing").catch(() => {});
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
@@ -97,7 +98,7 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
 
   // 3. View Applicants with Group Info
   mainBot.callbackQuery(/^emp:apps:(.+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery().catch(() => {});
     const jobId = ctx.match[1];
     const job = await getJobById(jobId);
     const applications = await getJobApplications(jobId);
@@ -165,22 +166,15 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
 
   // 4. Select Candidate with Group & Share Button
   mainBot.callbackQuery(/^emp:select:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const appId = ctx.match[1];
     const { application: app, isJobFilled, selectedCount, openings } =
       await selectApplication(appId);
 
     if (!app) {
-      await ctx.answerCallbackQuery({
-        text: "Nomzodni tanlashda xatolik yuz berdi",
-        show_alert: true,
-      });
+      await ctx.reply("Nomzodni tanlashda xatolik yuz berdi.");
       return;
     }
-
-    await ctx.answerCallbackQuery({
-      text: "✅ Nomzod tanlandi!",
-      show_alert: true,
-    });
 
     const worker = app.worker;
     const job = app.job;
@@ -253,18 +247,14 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
 
   // 5. Reject Candidate
   mainBot.callbackQuery(/^emp:reject:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const appId = ctx.match[1];
     const app = await rejectApplication(appId);
 
     if (!app) {
-      await ctx.answerCallbackQuery({
-        text: "Nomzodni rad etishda xatolik yuz berdi",
-        show_alert: true,
-      });
       return;
     }
 
-    await ctx.answerCallbackQuery({ text: "Nomzod rad etildi" });
     await ctx.editMessageText("❌ Ushbu nomzod arizasi rad etildi.");
 
     const worker = app.worker;
@@ -297,7 +287,7 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
 
   // 6. Complete Job & Rate Workers
   mainBot.callbackQuery(/^emp:finish:(.+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery().catch(() => {});
     const jobId = ctx.match[1];
     const job = await getJobById(jobId);
 
@@ -344,6 +334,7 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
 
   // 7. Handle Star Rating
   mainBot.callbackQuery(/^emp:rate:(.+):(.+):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
     const telegramId = ctx.from.id;
     const employer = await getUserByTelegramId(telegramId);
     if (!employer) return;
@@ -359,7 +350,6 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
       rating,
     });
 
-    await ctx.answerCallbackQuery({ text: `Baho saqlandi: ${rating} ⭐️` });
     await ctx.editMessageText(
       `✅ <b>Ishchiga ${"⭐️".repeat(rating)} (${rating} ball) baho berildi!</b>\nRahmat, sizning bahoyingiz platforma sifatini oshirishga yordam beradi.`,
       { parse_mode: "HTML" }
@@ -389,7 +379,7 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
 
   // 8. Close / Stop Job
   mainBot.callbackQuery(/^emp:close:(.+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
+    await ctx.answerCallbackQuery().catch(() => {});
     const jobId = ctx.match[1];
     await updateJobStatus(jobId, "cancelled");
     await ctx.editMessageText("⏹ E’lon to‘xtatildi va qidiruvdan olindi.");

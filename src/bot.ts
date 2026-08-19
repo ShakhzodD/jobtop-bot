@@ -8,6 +8,19 @@ import { registerWorkerHandlers } from "./handlers/worker.handler.js";
 import { registerEmployerHandlers } from "./handlers/employer.handler.js";
 import { registerAdminHandlers } from "./handlers/admin.handler.js";
 
+// Instant callback query response & loading state middleware
+bot.on("callback_query", async (ctx, next) => {
+  ctx.answerCallbackQuery().catch(() => {});
+  return next();
+});
+
+if (modBot !== bot) {
+  modBot.on("callback_query", async (ctx, next) => {
+    ctx.answerCallbackQuery().catch(() => {});
+    return next();
+  });
+}
+
 // Setup conversations plugin on main bot
 bot.use(conversations());
 bot.use(createConversation(createJobConversation));
