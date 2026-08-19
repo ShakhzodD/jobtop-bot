@@ -227,7 +227,16 @@ bot.callbackQuery(/^auth:role:(worker|employer)$/, async (ctx) => {
   const role = ctx.match[1];
   const telegramId = ctx.from.id;
   const fullName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || "Foydalanuvchi";
-  await upsertUser({ telegram_id: telegramId, full_name: fullName, telegram_username: ctx.from.username ?? null, active_role: role });
+  const user = await upsertUser({ telegram_id: telegramId, full_name: fullName, telegram_username: ctx.from.username ?? null, active_role: role });
+
+  if (user && user.phone) {
+    if (ctx.callbackQuery.message) {
+      await ctx.editMessageText(`✅ Rolingiz tanlandi: <b>${role === "employer" ? "💼 Ish beruvchi" : "👷 Ishchi"}</b>`, { parse_mode: "HTML" }).catch(() => {});
+    }
+    const menu = role === "employer" ? getEmployerMainMenu() : getWorkerMainMenu();
+    return ctx.reply(`Xush kelibsiz! Asosiy menyu:`, { reply_markup: menu });
+  }
+
   if (ctx.callbackQuery.message) {
     await ctx.editMessageText(`✅ Rolingiz tanlandi: <b>${role === "employer" ? "💼 Ish beruvchi" : "👷 Ishchi"}</b>.\n\nEndi telefon raqamingizni yuboring:`, { parse_mode: "HTML" }).catch(() => {});
   }
