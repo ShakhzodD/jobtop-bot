@@ -104,14 +104,19 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
       const worker = app.worker;
       const appText = [
         `👤 <b>Nomzod:</b> ${worker?.full_name || "Noma'lum"}`,
-        worker?.district ? `📍 Tuman: ${worker.district}` : "",
-        worker?.experience_years ? `💼 Tajriba: ${worker.experience_years} yil` : "",
-        worker?.about ? `📝 Ma’lumot: ${worker.about}` : "",
-        app.note ? `💬 Izoh: ${app.note}` : "",
-        `Holati: <b>${app.status === "selected" ? "✅ Tanlangan" : app.status === "rejected" ? "❌ Rad etilgan" : "⏳ Kutilmoqda"}</b>`,
-        app.status === "selected" && worker?.phone
-          ? `📞 <b>Telefon raqami:</b> ${worker.phone}`
-          : "",
+        worker?.phone ? `📞 <b>Telefon:</b> <code>${worker.phone}</code>` : "",
+        worker?.telegram_username ? `💬 <b>Telegram:</b> @${worker.telegram_username}` : "",
+        worker?.district ? `📍 <b>Tuman:</b> ${worker.district}` : "",
+        worker?.experience_years ? `💼 <b>Tajriba:</b> ${worker.experience_years} yil` : "",
+        worker?.about ? `📝 <b>Ma’lumot:</b> ${worker.about}` : "",
+        app.note ? `💬 <b>Izoh:</b> ${app.note}` : "",
+        `Holati: <b>${
+          app.status === "selected"
+            ? "✅ Tanlangan (Qabul qilingan)"
+            : app.status === "rejected"
+            ? "❌ Rad etilgan"
+            : "⏳ Kutilmoqda"
+        }</b>`,
       ]
         .filter(Boolean)
         .join("\n");
@@ -121,6 +126,13 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
         keyboard
           .text("✅ Tanlash", `emp:select:${app.id}`)
           .text("❌ Rad etish", `emp:reject:${app.id}`);
+      }
+
+      if (worker?.telegram_username) {
+        keyboard.row().url(
+          "✉️ Nomzodga yozish",
+          `https://t.me/${worker.telegram_username}`
+        );
       }
 
       await ctx.reply(appText, {
@@ -152,10 +164,11 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
     const job = app.job;
 
     await ctx.reply(
-      `🎉 <b>Siz nomzodni tanladingiz!</b>\n\n` +
+      `🎉 <b>Siz nomzodni ishga tanladingiz!</b>\n\n` +
         `👤 <b>Ishchi:</b> ${worker?.full_name}\n` +
         `📞 <b>Telefon raqami:</b> <code>${worker?.phone || "Mavjud emas"}</code>\n` +
-        `💬 Ishchi bilan bog‘lanib, tafsilotlarni kelishishingiz mumkin.`,
+        (worker?.telegram_username ? `💬 <b>Telegram:</b> @${worker.telegram_username}\n` : "") +
+        `\nIshchi bilan bog‘lanib, ish vaqtini kelishishingiz mumkin.`,
       { parse_mode: "HTML" }
     );
 
@@ -165,11 +178,12 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
         const employer = (job as any)?.employer;
         await bot.api.sendMessage(
           worker.telegram_id,
-          `🎉 <b>Xushxabar! Sizni ishga tanlashdi!</b>\n\n` +
+          `🎉 <b>Xushxabar! Ish beruvchi sizni ishga tanladi!</b>\n\n` +
             `📌 <b>E’lon:</b> ${job?.title}\n` +
             `🏢 <b>Ish beruvchi:</b> ${employer?.full_name || "Ish beruvchi"}\n` +
-            `📞 <b>Telefon raqami:</b> <code>${employer?.phone || "Mavjud emas"}</code>\n\n` +
-            `Ish beruvchi siz bilan bog‘lanadi yoki siz unga qo‘ng‘iroq qilishingiz mumkin. Omad! 🤝`,
+            `📞 <b>Telefon raqami:</b> <code>${employer?.phone || "Mavjud emas"}</code>\n` +
+            (employer?.telegram_username ? `💬 <b>Telegram:</b> @${employer.telegram_username}\n` : "") +
+            `\nIsh beruvchi siz bilan bog‘lanadi yoki siz unga qo‘ng‘iroq qilishingiz mumkin. Omad! 🤝`,
           { parse_mode: "HTML" }
         );
       } catch (e) {

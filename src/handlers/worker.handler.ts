@@ -7,6 +7,7 @@ import {
   getWorkerApplications,
 } from "../services/application.service.js";
 import { JOB_CATEGORIES } from "../core/gemini.js";
+import { supabase } from "../core/supabase.js";
 
 function renderJobCard(job: DBJob, index: number, total: number) {
   const lines = [
@@ -126,11 +127,9 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
     });
   });
 
-  // Apply for job
+  // Apply for job: Sends candidate info, phone number & username to employer
   bot.callbackQuery(/^worker:apply:(.+):(.+):(\d+)$/, async (ctx) => {
     const jobId = ctx.match[1];
-    const categoryParam = ctx.match[2];
-    const offset = ctx.match[3];
     const telegramId = ctx.from.id;
 
     const user = await getUserByTelegramId(telegramId);
@@ -162,42 +161,46 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
       show_alert: true,
     });
 
-    // Notify Employer in Telegram
+    // Notify Employer immediately in Telegram with full Candidate info!
     if (job.employer_id) {
-      const employer = job.employer;
-      const employerTelegramId = (job as any).employer?.telegram_id;
-
-      // Notify if we have employer's telegram_id
-      const { data: employerUser } = await (bot as any)
-        .api?.raw?.() // fallback
-        ?.catch?.(() => {}) || {};
-
       try {
-        // Query employer telegram id
-        const { data: empData } = await import("../core/supabase.js").then((m) =>
-          m.supabase
-            .from("users")
-            .select("telegram_id")
-            .eq("id", job.employer_id!)
-            .single()
-        );
+        const { data: empData } = await supabase
+          .from("users")
+          .select("telegram_id")
+          .eq("id", job.employer_id)
+          .single();
 
         if (empData?.telegram_id) {
+          const usernameStr = ctx.from.username
+            ? `@${ctx.from.username}`
+            : user.telegram_username
+            ? `@${user.telegram_username}`
+            : null;
+
           const applicantText = [
-            "🔔 <b>E’loningizga yangi ariza tushdi!</b>",
+            "🔔 <b>E’loningizga yangi nomzod qiziqish bildirdi!</b>",
             "",
             `📌 <b>E’lon:</b> ${job.title}`,
             `👤 <b>Nomzod:</b> ${user.full_name}`,
-            user.district ? `📍 Tuman: ${user.district}` : "",
-            user.experience_years ? `💼 Tajriba: ${user.experience_years} yil` : "",
-            user.about ? `📝 Ma’lumot: ${user.about}` : "",
+            user.phone ? `📞 <b>Telefon:</b> <code>${user.phone}</code>` : "",
+            usernameStr ? `💬 <b>Telegram:</b> ${usernameStr}` : "",
+            user.district ? `📍 <b>Tuman:</b> ${user.district}` : "",
+            user.experience_years ? `💼 <b>Tajriba:</b> ${user.experience_years} yil` : "",
+            user.about ? `📝 <b>Ma’lumot:</b> ${user.about}` : "",
+            "",
+            "Nomzodni ishga qabul qilasizmi?",
           ]
             .filter(Boolean)
             .join("\n");
 
           const empKeyboard = new InlineKeyboard()
-            .text("✅ Tanlash", `emp:select:${res.application!.id}`)
+            .text("✅ Tanlash (Qabul qilish)", `emp:select:${res.application!.id}`)
             .text("❌ Rad etish", `emp:reject:${res.application!.id}`);
+
+          if (usernameStr) {
+            const rawUsername = usernameStr.replace(/^@/, "");
+            empKeyboard.row().url("✉️ Nomzodga Telegramdan yozish", `https://t.me/${rawUsername}`);
+          }
 
           await bot.api.sendMessage(empData.telegram_id, applicantText, {
             parse_mode: "HTML",
@@ -205,7 +208,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
           });
         }
       } catch (e) {
-        console.error("Failed to notify employer:", e);
+        console.error("Failed to notify employer about applicant:", e);
       }
     }
   });
