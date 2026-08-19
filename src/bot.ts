@@ -1,4 +1,16 @@
 import http from "node:http";
+
+// 1. Immediate Health Check Server for Cloud Hosting (Render / Railway / Koyeb)
+const PORT = Number(process.env.PORT) || 3000;
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ status: "ok", service: "JobTop Telegram Bot", uptime: process.uptime() }));
+});
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`📡 Health check server listening on 0.0.0.0:${PORT}`);
+});
+
 import { conversations, createConversation } from "@grammyjs/conversations";
 import { run } from "@grammyjs/runner";
 import { bot, modBot } from "./core/bots.js";
@@ -54,19 +66,9 @@ const runner2 = modBot !== bot ? run(modBot) : null;
 const stopRunners = () => {
   if (runner1.isRunning()) runner1.stop();
   if (runner2 && runner2.isRunning()) runner2.stop();
+  server.close();
   console.log("Botlar to'xtatildi.");
 };
 
 process.once("SIGINT", stopRunners);
 process.once("SIGTERM", stopRunners);
-
-// Health check server for Cloud Hosting (Render / Railway / Fly.io / Koyeb)
-const PORT = Number(process.env.PORT) || 3000;
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ status: "ok", service: "JobTop Telegram Bot", uptime: process.uptime() }));
-});
-
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`📡 Health check server listening on 0.0.0.0:${PORT}`);
-});
