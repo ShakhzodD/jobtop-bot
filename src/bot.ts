@@ -9,7 +9,7 @@ process.on("unhandledRejection", (reason) => {
 });
 
 // 1. Immediate Health Check Server for Cloud Hosting (Render / Railway / Koyeb)
-const PORT = Number(process.env.PORT) || 3000;
+const PORT = Number(process.env.PORT) || 10000;
 const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ status: "ok", service: "JobTop Telegram Bot", uptime: process.uptime() }));
@@ -55,28 +55,41 @@ registerEmployerHandlers(bot);
 // Register Moderation / Admin Handlers (on Moderation Bot)
 registerAdminHandlers(modBot, bot);
 
-// Catch errors
+// Catch errors safely without crashing
 bot.catch((err) => {
-  console.error(`Main Bot error on update ${err.ctx.update?.update_id}:`, err.error);
+  console.error("Main Bot error:", err.message || err.error || err);
 });
 
 if (modBot !== bot) {
   modBot.catch((err) => {
-    console.error(`Moderation Bot error on update ${err.ctx.update?.update_id}:`, err.error);
+    console.error("Moderation Bot error:", err.message || err.error || err);
   });
 }
 
-// Start bot runners
-console.log("🚀 JobTop Asosiy Bot va Moderatsiya Boti ishga tushirilmoqda...");
-const runner1 = run(bot);
-const runner2 = modBot !== bot ? run(modBot) : null;
+// Start bot runners safely with automatic webhook cleanup
+async function startBots() {
+  try {
+    await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
+    if (modBot !== bot) {
+      await modBot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
+    }
 
-const stopRunners = () => {
-  if (runner1.isRunning()) runner1.stop();
-  if (runner2 && runner2.isRunning()) runner2.stop();
-  server.close();
-  console.log("Botlar to'xtatildi.");
-};
+    console.log("🚀 JobTop Asosiy Bot va Moderatsiya Boti ishga tushirilmoqda...");
+    const runner1 = run(bot);
+    const runner2 = modBot !== bot ? run(modBot) : null;
 
-process.once("SIGINT", stopRunners);
-process.once("SIGTERM", stopRunners);
+    const stopRunners = () => {
+      if (runner1 && runner1.isRunning()) runner1.stop();
+      if (runner2 && runner2.isRunning()) runner2.stop();
+      server.close();
+      console.log("Botlar to'xtatildi.");
+    };
+
+    process.once("SIGINT", stopRunners);
+    process.once("SIGTERM", stopRunners);
+  } catch (err) {
+    console.error("Bot start error:", err);
+  }
+}
+
+startBots();
