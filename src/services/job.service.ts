@@ -70,6 +70,20 @@ export async function getPublishedJobs(options: {
   };
 }
 
+export async function getPendingModerationJobs(): Promise<DBJob[]> {
+  const { data, error } = await supabase
+    .from("jobs")
+    .select("*, employer:users!employer_id(full_name, phone, telegram_username)")
+    .eq("status", "pending_moderation")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching pending moderation jobs:", error);
+    return [];
+  }
+  return (data as DBJob[]) || [];
+}
+
 export async function getJobById(id: string): Promise<DBJob | null> {
   const { data, error } = await supabase
     .from("jobs")

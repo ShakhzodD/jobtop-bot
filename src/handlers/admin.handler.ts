@@ -1,4 +1,4 @@
-import { Bot, InlineKeyboard } from "grammy";
+import { Bot, InlineKeyboard, Keyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import { config } from "../config/env.js";
 import {
@@ -6,10 +6,123 @@ import {
   broadcastJobToMatchingWorkers,
 } from "../services/moderation.service.js";
 import { importTelegramChannelPost } from "../services/import.service.js";
-import { getJobById } from "../services/job.service.js";
+import { getJobById, getPendingModerationJobs, DBJob } from "../services/job.service.js";
+import { supabase } from "../core/supabase.js";
+
+export const moderationMenuKeyboard = new Keyboard()
+  .text("📋 Moderatsiyadagi e’lonlar")
+  .text("📊 Statistika")
+  .resized();
+
+function renderModerationCard(job: DBJob) {
+  const lines = [
+    `🔔 <b>Moderatsiyadagi e’lon:</b>`,
+    "",
+    `📌 <b>Sarlavha:</b> ${job.title}`,
+    `📂 <b>Kategoriya:</b> ${job.category}`,
+    `📍 <b>Tuman / Manzil:</b> ${job.district}, ${job.address}`,
+    `💰 <b>Ish haqi:</b> ${job.pay_amount.toLocaleString()} so‘m`,
+    `👥 <b>Kerakli ishchilar:</b> ${job.openings} ta`,
+    `🕒 <b>Vaqti:</b> ${new Date(job.starts_at).toLocaleString("uz-UZ")}`,
+    `📝 <b>Tavsif:</b>\n${job.description}`,
+    job.source_name ? `\n🔗 <b>Manba:</b> ${job.source_name}` : "",
+    job.employer ? `\n👤 <b>Ish beruvchi:</b> ${job.employer.full_name} (${job.employer.phone || "Telefon yo'q"})` : "",
+  ];
+
+  return lines.filter(Boolean).join("\n");
+}
 
 export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyContext>) {
-  // Moderation Callback (Approve / Reject)
+  // 1. Strict Security Guard: Only ADMIN_TELEGRAM_IDS can interact with Moderation Bot
+  modBot.use(async (ctx, next) => {
+    const telegramId = ctx.from?.id;
+    if (!telegramId || !config.adminTelegramIds.includes(telegramId)) {
+      if (ctx.message || ctx.callbackQuery) {
+        await ctx.reply(
+          "⛔️ <b>Ruxsat yo‘q!</b>\n\nUshbu bot faqat JobTop platformasi adminlari uchun mo‘ljallangan.",
+          { parse_mode: "HTML" }
+        ).catch(() => {});
+      }
+      return;
+    }
+    return next();
+  });
+
+  // 2. /start Command for Moderation Bot
+  modBot.command("start", async (ctx) => {
+    await ctx.reply(
+      `👋 Assalomu alaykum, <b>Admin ${ctx.from?.first_name || ""}</b>!\n\n` +
+        `Siz <b>JobTop Moderatsiya Boti</b>dasiz.\n\n` +
+        `• Barcha yangi e’lonlar to‘g‘ridan-to‘g‘ri shu yerga keladi.\n` +
+        `• <b>📋 Moderatsiyadagi e’lonlar</b> tugmasi orqali ko‘rib chiqilmagan e’lonlar ro‘yxatini olishingiz mumkin.\n` +
+        `• Boshqa kanallardan postlarni shu botga <b>forward</b> qilsangiz, Gemini AI uni avtomatik import qiladi.`,
+      {
+        parse_mode: "HTML",
+        reply_markup: moderationMenuKeyboard,
+      }
+    );
+  });
+
+  // 3. "📋 Moderatsiyadagi e’lonlar" Button
+  modBot.hears("📋 Moderatsiyadagi e’lonlar", async (ctx) => {
+    const pendingJobs = await getPendingModerationJobs();
+
+    if (pendingJobs.length === 0) {
+      await ctx.reply(
+        "✅ <b>Hozircha moderatsiyada kutilayotgan e’lonlar yo‘q!</b>\n\nBarcha e’lonlar ko‘rib chiqilgan.",
+        { parse_mode: "HTML", reply_markup: moderationMenuKeyboard }
+      );
+      return;
+    }
+
+    await ctx.reply(
+      `📥 <b>Moderatsiyada kutilayotgan e’lonlar soni: ${pendingJobs.length} ta</b>\n\nHar birini tasdiqlashingiz yoki rad etishingiz mumkin:`,
+      { parse_mode: "HTML" }
+    );
+
+    for (const job of pendingJobs) {
+      const text = renderModerationCard(job);
+      const keyboard = new InlineKeyboard()
+        .text("✅ Tasdiqlash", `admin:mod:${job.id}:publish`)
+        .text("❌ Rad etish", `admin:mod:${job.id}:reject`);
+
+      await ctx.reply(text, {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      });
+    }
+  });
+
+  // 4. "📊 Statistika" Button
+  modBot.hears("📊 Statistika", async (ctx) => {
+    const [
+      { count: usersCount },
+      { count: publishedJobsCount },
+      { count: pendingJobsCount },
+      { count: applicationsCount },
+    ] = await Promise.all([
+      supabase.from("users").select("*", { count: "exact", head: true }),
+      supabase.from("jobs").select("*", { count: "exact", head: true }).eq("status", "published"),
+      supabase.from("jobs").select("*", { count: "exact", head: true }).eq("status", "pending_moderation"),
+      supabase.from("applications").select("*", { count: "exact", head: true }),
+    ]);
+
+    const statsText = [
+      "📊 <b>JobTop Tizim Statistikasi:</b>",
+      "",
+      `👥 <b>Foydalanuvchilar:</b> ${usersCount ?? 0} ta`,
+      `🟢 <b>Faol e’lonlar:</b> ${publishedJobsCount ?? 0} ta`,
+      `⏳ <b>Moderatsiyada:</b> ${pendingJobsCount ?? 0} ta`,
+      `📄 <b>Jami arizalar:</b> ${applicationsCount ?? 0} ta`,
+    ].join("\n");
+
+    await ctx.reply(statsText, {
+      parse_mode: "HTML",
+      reply_markup: moderationMenuKeyboard,
+    });
+  });
+
+  // 5. Moderation Callback (Approve / Reject)
   modBot.callbackQuery(/^admin:mod:(.+):(publish|reject)$/, async (ctx) => {
     const telegramId = ctx.from.id;
     if (!config.adminTelegramIds.includes(telegramId)) {
@@ -27,20 +140,19 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
     await ctx.answerCallbackQuery({ text: res.message });
 
     if (res.success && res.job) {
-      const statusIcon = action === "publish" ? "✅ Tasdiqlandi" : "❌ Rad etildi";
+      const statusIcon = action === "publish" ? "✅ Tasdiqlandi (E’lon faol)" : "❌ Rad etildi";
       await ctx.editMessageText(
         `${ctx.callbackQuery.message?.text}\n\n──────────────────\n<b>${statusIcon} (Admin: ${ctx.from.first_name})</b>`,
         { parse_mode: "HTML" }
       );
 
-      // If approved, broadcast to workers via Main Bot
+      // If approved, broadcast to matching workers via Main Bot
       if (action === "publish") {
         await broadcastJobToMatchingWorkers(mainBot.api, res.job);
 
         // Notify employer via Main Bot
         if (res.job.employer_id) {
           try {
-            const { supabase } = await import("../core/supabase.js");
             const { data: emp } = await supabase
               .from("users")
               .select("telegram_id")
@@ -50,7 +162,7 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
             if (emp?.telegram_id) {
               await mainBot.api.sendMessage(
                 emp.telegram_id,
-                `✅ <b>E’loningiz tasdiqlandi!</b>\n\n“${res.job.title}” e’loningiz platformaga chiqarildi. Arizalar tushganda sizga xabar beramiz.`,
+                `✅ <b>E’loningiz tasdiqlandi!</b>\n\n“${res.job.title}” e’loningiz muvaffaqiyatli platformaga chiqarildi. Arizalar kelishi bilan sizga xabar beramiz.`,
                 { parse_mode: "HTML" }
               );
             }
@@ -62,42 +174,7 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
     }
   });
 
-  // Admin Direct View Single Job
-  modBot.callbackQuery(/^job:view:(.+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const jobId = ctx.match[1];
-    const job = await getJobById(jobId);
-
-    if (!job || job.status !== "published") {
-      await ctx.reply("Ushbu e’lon endi faol emas.");
-      return;
-    }
-
-    const text = [
-      `📋 <b>${job.title}</b>`,
-      "",
-      `📂 <b>Kategoriya:</b> ${job.category}`,
-      `📍 <b>Tuman:</b> ${job.district}`,
-      `🏢 <b>Manzil:</b> ${job.address}`,
-      `💰 <b>Ish haqi:</b> ${job.pay_amount.toLocaleString()} so‘m`,
-      `👥 <b>Bo‘sh o‘rinlar:</b> ${job.openings} ta`,
-      `🕒 <b>Boshlanish vaqti:</b> ${new Date(job.starts_at).toLocaleString("uz-UZ")}`,
-      "",
-      `📝 <b>Tavsif:</b>\n${job.description}`,
-    ].join("\n");
-
-    const keyboard = new InlineKeyboard();
-    if (job.source_url) {
-      keyboard.url("🌐 Asl manba", job.source_url);
-    }
-
-    await ctx.reply(text, {
-      parse_mode: "HTML",
-      reply_markup: keyboard,
-    });
-  });
-
-  // Admin Forward Import: When an admin forwards a message from a channel to Moderation Bot
+  // 6. Admin Forward Import
   modBot.on("message", async (ctx, next) => {
     const telegramId = ctx.from?.id;
     if (!telegramId || !config.adminTelegramIds.includes(telegramId)) {
@@ -115,19 +192,9 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
     );
 
     if (!isForwarded || !text) {
-      if (text === "/start") {
-        await ctx.reply(
-          `👋 Assalomu alaykum, <b>Admin</b>!\n\nBu <b>JobTop Moderatsiya Boti</b>.\n\n` +
-            `• Barcha yangi e’lonlar shu yerga moderatsiya uchun keladi.\n` +
-            `• Boshqa kanallardan e’lon postlarini ushbu botga <b>forward</b> qilsangiz, Gemini AI uni avtomatik tahlil qilib bazaga kiritadi.`,
-          { parse_mode: "HTML" }
-        );
-        return;
-      }
       return next();
     }
 
-    // Determine channel / source details
     let sourceName = "Forwarded Telegram Channel";
     let sourceUrl: string | undefined = undefined;
     let messageId: number | undefined = undefined;
