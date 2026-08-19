@@ -9,6 +9,7 @@ import {
   applyForJob,
   getWorkerApplications,
   withdrawApplication,
+  cancelAcceptedApplication,
 } from "../services/application.service.js";
 import { getUserRating } from "../services/review.service.js";
 import { JOB_CATEGORIES } from "../core/gemini.js";
@@ -237,7 +238,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     }
   });
 
-  // View my applications (With Withdraw Option)
+  // View my applications
   mainBot.hears("📄 Mening arizalarim", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
@@ -287,16 +288,18 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       const keyboard = new InlineKeyboard();
       if (app.status === "pending") {
         keyboard.text("❌ Arizani bekor qilish", `worker:withdraw:${app.id}`);
+      } else if (app.status === "selected") {
+        keyboard.text("🚫 Borolmayman (Bekor qilish)", `worker:cancel_acc_prompt:${app.id}`);
       }
 
       await ctx.reply(msg, {
         parse_mode: "HTML",
-        reply_markup: app.status === "pending" ? keyboard : undefined,
+        reply_markup: app.status === "pending" || app.status === "selected" ? keyboard : undefined,
       });
     }
   });
 
-  // Withdraw application callback
+  // Withdraw pending application
   mainBot.callbackQuery(/^worker:withdraw:(.+)$/, async (ctx) => {
     const appId = ctx.match[1];
     const telegramId = ctx.from.id;
@@ -309,6 +312,87 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     if (res.success) {
       await ctx.editMessageText("❌ Ushbu arizangiz bekor qilindi.");
     }
+  });
+
+  // Prompt for cancellation reason when accepted
+  mainBot.callbackQuery(/^worker:cancel_acc_prompt:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const appId = ctx.match[1];
+
+    const keyboard = new InlineKeyboard()
+      .text("🤒 Sog‘lig‘im to‘g‘ri kelmadi", `worker:cancel_acc_do:${appId}:Sog'liq sababli`)
+      .row()
+      .text("🚗 Boshqa reja chiqib qoldi", `worker:cancel_acc_do:${appId}:Boshqa reja chiqdi`)
+      .row()
+      .text("⏳ Ulgurmay qoldim", `worker:cancel_acc_do:${appId}:Ulgura olmadi`)
+      .row()
+      .text("🔙 Ortga qaytish", "worker:cancel_acc_back");
+
+    await ctx.editMessageText(
+      "⚠️ <b>Ish beruvchi sizni kutmoqda!</b>\n\nAgar rostdan ham ishga bora olmasangiz, iltimos, sababini tanlang (ish beruvchiga darhol xabar yuboriladi):",
+      {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      }
+    );
+  });
+
+  // Execute cancellation of accepted application
+  mainBot.callbackQuery(/^worker:cancel_acc_do:(.+):(.+)$/, async (ctx) => {
+    const appId = ctx.match[1];
+    const reason = ctx.match[2];
+    const telegramId = ctx.from.id;
+
+    const user = await getUserByTelegramId(telegramId);
+    if (!user) return;
+
+    const res = await cancelAcceptedApplication(appId, user.id, reason);
+    await ctx.answerCallbackQuery({ text: res.message });
+
+    await ctx.editMessageText(
+      `🚫 <b>Ishga bora olmasligingiz belgilandi.</b>\nSabab: <i>${reason}</i>\nIsh beruvchiga bu haqda xabar yuborildi.`,
+      { parse_mode: "HTML" }
+    );
+
+    // Notify Employer in Telegram urgently!
+    const app = res.application;
+    const job = app?.job;
+    const employer = job?.employer;
+
+    if (employer && (employer as any).telegram_id) {
+      try {
+        const notifyText = [
+          "⚠️ <b>Diqqat! Tanlangan ishchi qatnasha olmasligini bildirdi:</b>",
+          "",
+          `📌 <b>E’lon:</b> ${job?.title}`,
+          `👤 <b>Ishchi:</b> ${user.full_name}`,
+          user.phone ? `📞 <b>Telefon:</b> <code>${user.phone}</code>` : "",
+          `📝 <b>Sabab:</b> ${reason}`,
+          "",
+          "💡 <i>Ushbu bo‘sh o‘rin qayta ochildi va boshqa nomzodlar yana ariza yuborishi mumkin.</i>",
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const empKb = new InlineKeyboard().text(
+          "👥 Boshqa nomzodlarni ko‘rish",
+          `emp:apps:${job!.id}`
+        );
+
+        await mainBot.api.sendMessage((employer as any).telegram_id, notifyText, {
+          parse_mode: "HTML",
+          reply_markup: empKb,
+        });
+      } catch (e) {
+        console.error("Failed to notify employer about worker cancellation:", e);
+      }
+    }
+  });
+
+  // Cancel back
+  mainBot.callbackQuery("worker:cancel_acc_back", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText("Bekor qilish bekor qilindi. Omad!");
   });
 
   // View Profile: Shows rating, completion bar & categories

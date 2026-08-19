@@ -109,6 +109,57 @@ export async function withdrawApplication(
   return { success: true, message: "Arizangiz muvaffaqiyatli bekor qilindi." };
 }
 
+// Cancel accepted job by worker (reopens the job opening if it was filled)
+export async function cancelAcceptedApplication(
+  applicationId: string,
+  workerUserId: string,
+  reason = "Reja o‘zgarishi sababli"
+): Promise<{
+  success: boolean;
+  message: string;
+  application?: DBApplication;
+  reopenedJob?: boolean;
+}> {
+  const { data: app, error } = await supabase
+    .from("applications")
+    .update({ status: "withdrawn", note: `Bekor qilindi: ${reason}` })
+    .eq("id", applicationId)
+    .eq("worker_id", workerUserId)
+    .select("*, worker:users!worker_id(*), job:jobs!job_id(*, employer:users!employer_id(*))")
+    .single();
+
+  if (error || !app) {
+    console.error("Error cancelling accepted application:", error);
+    return { success: false, message: "Bekor qilishda xatolik yuz berdi." };
+  }
+
+  const job = app.job;
+  let reopenedJob = false;
+
+  if (job) {
+    // Check remaining selected count
+    const { count: selectedCount } = await supabase
+      .from("applications")
+      .select("*", { count: "exact", head: true })
+      .eq("job_id", job.id)
+      .eq("status", "selected");
+
+    const currentSelected = selectedCount ?? 0;
+    // If job was filled and now currentSelected < openings, reopen it!
+    if (job.status === "filled" && currentSelected < job.openings) {
+      await updateJobStatus(job.id, "published");
+      reopenedJob = true;
+    }
+  }
+
+  return {
+    success: true,
+    message: "Arizangiz bekor qilindi va bu haqda ish beruvchiga xabar berildi.",
+    application: app as DBApplication,
+    reopenedJob,
+  };
+}
+
 export async function getJobApplications(jobId: string): Promise<DBApplication[]> {
   const { data, error } = await supabase
     .from("applications")
