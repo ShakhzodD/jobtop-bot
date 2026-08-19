@@ -1,22 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import {
-  Bot,
-  Context,
-  InlineKeyboard,
-  Keyboard,
-  SessionFlavor,
-  session,
-  webhookCallback,
-} from "npm:grammy@^1.34.0";
-import {
-  type Conversation,
-  type ConversationFlavor,
-  conversations,
-  createConversation,
-} from "npm:@grammyjs/conversations@^2.1.1";
+import { Bot, InlineKeyboard, Keyboard, webhookCallback } from "npm:grammy@^1.34.0";
 import { createClient } from "npm:@supabase/supabase-js@^2.49.1";
 
-// 1. Environments & Config
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://gzmmlrzqzblykvsxnows.supabase.co";
 const SUPABASE_API_KEY = Deno.env.get("SUPABASE_API_KEY") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6bW1scnpxemJseWt2c3hub3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAxNjE2ODMsImV4cCI6MjA1NTczNzY4M30.3j-QdE4z1e_1e68sPzTzL_82m2N8pZ0w";
 const MAIN_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
@@ -28,14 +13,6 @@ const ADMIN_IDS = (Deno.env.get("ADMIN_TELEGRAM_IDS") || "445057374")
   .filter((n) => !isNaN(n));
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_API_KEY);
-
-// Types
-export type UserRole = "worker" | "employer";
-export interface SessionData {
-  role?: UserRole;
-}
-export type MyContext = Context & SessionFlavor<SessionData> & ConversationFlavor;
-export type MyConversation = Conversation<MyContext>;
 
 export const JOB_CATEGORIES = ["Kuryer", "Xizmat", "Yuk tashish", "Tozalash"] as const;
 export type JobCategory = (typeof JOB_CATEGORIES)[number];
@@ -141,19 +118,23 @@ E’lon matni: ${rawText}`;
   return smartRegexFallback(rawText);
 }
 
-// User Services
+// User Helpers
 async function getUserByTelegramId(telegramId: number) {
   const { data } = await supabase.from("users").select("*").eq("telegram_id", telegramId).maybeSingle();
   return data;
 }
 
-async function upsertUser(userData: { telegram_id: number; full_name: string; telegram_username?: string | null; phone?: string | null; active_role?: UserRole }) {
+async function upsertUser(userData: { telegram_id: number; full_name: string; telegram_username?: string | null; phone?: string | null; active_role?: string }) {
   const { data, error } = await supabase.from("users").upsert(userData, { onConflict: "telegram_id" }).select("*").single();
   if (error) throw error;
   if (userData.active_role) {
     await supabase.from("user_roles").upsert({ user_id: data.id, role: userData.active_role }, { onConflict: "user_id,role" });
   }
   return data;
+}
+
+async function setUserState(telegramId: number, state: any) {
+  await supabase.from("users").update({ bot_state: state }).eq("telegram_id", telegramId);
 }
 
 async function getUserRating(userId: string) {
@@ -206,153 +187,19 @@ function getEmployerMainMenu() {
 }
 
 // Bot Instances
-export const bot = new Bot<MyContext>(MAIN_BOT_TOKEN);
-export const modBot = new Bot<MyContext>(MOD_BOT_TOKEN);
+export const bot = new Bot(MAIN_BOT_TOKEN);
+export const modBot = new Bot(MOD_BOT_TOKEN);
 
-// Sessions & Middleware
-bot.use(session({ initial: () => ({}) }));
-bot.use(conversations());
+bot.catch((err) => console.error("Main Bot Error:", err));
+modBot.catch((err) => console.error("Mod Bot Error:", err));
 
-// Instant callback response
-bot.on("callback_query", async (ctx, next) => {
-  ctx.answerCallbackQuery().catch(() => {});
-  return next();
-});
-modBot.on("callback_query", async (ctx, next) => {
-  ctx.answerCallbackQuery().catch(() => {});
-  return next();
-});
-
-// Conversations
-async function createJobConv(conversation: MyConversation, ctx: MyContext) {
-  const telegramId = ctx.from?.id;
-  if (!telegramId) return;
-  const user = await conversation.external(() => getUserByTelegramId(telegramId));
-  if (!user) return;
-
-  await ctx.reply(
-    `📝 <b>Yangi e’lon yaratish</b>\n\nE’lon haqida barcha ma’lumotlarni bitta xabarda erkin matn bilan yozing:\n<i>Masalan: “Ertaga Chilonzorda 2 ta yuk tashuvchi kerak, 250 mingdan”</i>\n\n✨ Tizimimiz uni avtomatik tarzda tayyor e’longa aylantiradi!`,
-    { parse_mode: "HTML", reply_markup: { keyboard: [[{ text: "❌ Bekor qilish" }]], resize_keyboard: true } }
-  );
-
-  const msg = await conversation.waitFor("message:text");
-  const text = msg.message.text.trim();
-  if (text === "❌ Bekor qilish" || text === "/cancel") {
-    await ctx.reply("Bekor qilindi.", { reply_markup: getEmployerMainMenu() });
-    return;
-  }
-
-  await ctx.reply("⏳ <i>E’loningiz tahlil qilinmoqda...</i>", { parse_mode: "HTML" });
-  const parsed = await conversation.external(() => parseJobWithAI(text));
-
-  const summary = [
-    `📋 <b>E’lon ko‘rinishi:</b>`,
-    "",
-    `📌 <b>Sarlavha:</b> ${parsed.title}`,
-    `📂 <b>Kategoriya:</b> ${parsed.category}`,
-    `📍 <b>Tuman / Manzil:</b> ${parsed.district}, ${parsed.address}`,
-    `💰 <b>Ish haqi:</b> ${parsed.payAmount.toLocaleString()} so‘m`,
-    `👥 <b>Ishchilar soni:</b> ${parsed.openings} ta`,
-    `📝 <b>Tavsif:</b> ${parsed.description}`,
-    "",
-    "E’lonni tasdiqlab moderatsiyaga yuborasizmi?",
-  ].join("\n");
-
-  const kb = new InlineKeyboard().text("✅ Tasdiqlash", "job:confirm").row().text("❌ Bekor qilish", "job:cancel");
-  const preview = await ctx.reply(summary, { parse_mode: "HTML", reply_markup: kb });
-
-  const act = await conversation.waitFor("callback_query:data");
-  await act.answerCallbackQuery().catch(() => {});
-
-  if (act.callbackQuery.data === "job:confirm") {
-    const { data: newJob } = await conversation.external(() =>
-      supabase.from("jobs").insert({
-        employer_id: user.id,
-        category: parsed.category,
-        title: parsed.title,
-        description: parsed.description,
-        district: parsed.district,
-        address: parsed.address,
-        starts_at: parsed.startsAt,
-        ends_at: parsed.endsAt,
-        pay_amount: parsed.payAmount,
-        openings: parsed.openings,
-        status: "pending_moderation",
-      }).select().single()
-    );
-
-    // Notify moderation bot
-    if (newJob) {
-      const adminText = `🔔 <b>Yangi e’lon (Moderatsiya):</b>\n\n📌 <b>Sarlavha:</b> ${newJob.title}\n📂 <b>Kategoriya:</b> ${newJob.category}\n📍 <b>Manzil:</b> ${newJob.district}, ${newJob.address}\n💰 <b>Haq:</b> ${newJob.pay_amount.toLocaleString()} so‘m\n👥 <b>Ishchilar:</b> ${newJob.openings} ta\n👤 <b>Ish beruvchi:</b> ${user.full_name} (${user.phone || ""})\n\n📝 <b>Tavsif:</b>\n${newJob.description}`;
-      const modKb = new InlineKeyboard().text("✅ Tasdiqlash", `admin:mod:${newJob.id}:publish`).text("❌ Rad etish", `admin:mod:${newJob.id}:reject`);
-      for (const adminId of ADMIN_IDS) {
-        await modBot.api.sendMessage(adminId, adminText, { parse_mode: "HTML", reply_markup: modKb }).catch(() => {});
-      }
-    }
-
-    await ctx.api.deleteMessage(ctx.chat!.id, preview.message_id).catch(() => {});
-    await ctx.reply("🎉 <b>E’loningiz moderatsiyaga yuborildi!</b>\n\nAdmin tasdiqlashi bilan ishchilarga ko‘rinadi.", {
-      parse_mode: "HTML",
-      reply_markup: getEmployerMainMenu(),
-    });
-  } else {
-    await ctx.api.deleteMessage(ctx.chat!.id, preview.message_id).catch(() => {});
-    await ctx.reply("E’lon bekor qilindi.", { reply_markup: getEmployerMainMenu() });
-  }
-}
-
-async function editProfileConv(conversation: MyConversation, ctx: MyContext) {
-  const telegramId = ctx.from?.id;
-  if (!telegramId) return;
-
-  await ctx.reply("Ism va familiyangizni kiriting:", { parse_mode: "HTML", reply_markup: { keyboard: [[{ text: "❌ Bekor qilish" }]], resize_keyboard: true } });
-  const nameMsg = await conversation.waitFor("message:text");
-  const name = nameMsg.message.text.trim();
-  if (name === "❌ Bekor qilish") return ctx.reply("Bekor qilindi.", { reply_markup: getWorkerMainMenu() });
-
-  await ctx.reply("Yashash tumaningizni kiriting (Masalan: <i>Chilonzor</i>):", { parse_mode: "HTML" });
-  const distMsg = await conversation.waitFor("message:text");
-  const district = distMsg.message.text.trim();
-
-  await ctx.reply("Ish tajribangiz (necha yil, masalan: <i>2</i>):", { parse_mode: "HTML" });
-  const expMsg = await conversation.waitFor("message:text");
-  const expYears = parseInt(expMsg.message.text.trim(), 10) || 0;
-
-  const categoriesList = JOB_CATEGORIES.map((c, i) => `${i + 1}. ${c}`).join("\n");
-  await ctx.reply(`Qaysi sohalarda ishlamoqchisiz? Raqamlarini yozing (masalan: <i>1, 3</i>) yoki <i>Barchasi</i>:\n\n${categoriesList}`, { parse_mode: "HTML" });
-  const catMsg = await conversation.waitFor("message:text");
-  const catInput = catMsg.message.text.trim();
-  let cats: string[] = ["Xizmat"];
-  if (catInput.toLowerCase().includes("barchas")) {
-    cats = [...JOB_CATEGORIES];
-  } else {
-    const indices = catInput.split(/[,;\s]+/).map((s) => parseInt(s.trim(), 10) - 1).filter((i) => i >= 0 && i < JOB_CATEGORIES.length);
-    if (indices.length > 0) cats = indices.map((i) => JOB_CATEGORIES[i]);
-  }
-
-  await ctx.reply("O‘zingiz haqingizda qisqacha ma’lumot yozing:", { parse_mode: "HTML" });
-  const aboutMsg = await conversation.waitFor("message:text");
-  const about = aboutMsg.message.text.trim();
-
-  await conversation.external(() =>
-    supabase.from("users").update({ full_name: name, district, experience_years: expYears, worker_categories: cats, about }).eq("telegram_id", telegramId)
-  );
-
-  await ctx.reply(`✅ <b>Profilingiz muvaffaqiyatli yangilandi!</b>\n\n📌 <b>Ism:</b> ${name}\n📍 <b>Tuman:</b> ${district}\n💼 <b>Tajriba:</b> ${expYears} yil\n📂 <b>Sohalar:</b> ${cats.join(", ")}`, {
-    parse_mode: "HTML",
-    reply_markup: getWorkerMainMenu(),
-  });
-}
-
-bot.use(createConversation(createJobConv));
-bot.use(createConversation(editProfileConv));
-
-// Main Bot Handlers
+// Start Command
 bot.command("start", async (ctx) => {
   const telegramId = ctx.from?.id;
   if (!telegramId) return;
   const user = await getUserByTelegramId(telegramId);
   if (user && user.phone) {
+    await setUserState(telegramId, {});
     const menu = user.active_role === "employer" ? getEmployerMainMenu() : getWorkerMainMenu();
     return ctx.reply(`Xush kelibsiz, <b>${user.full_name}</b>! 👋\n\nSiz <b>${user.active_role === "employer" ? "💼 Ish beruvchi" : "👷 Ishchi"}</b> rejimidasiz.`, {
       parse_mode: "HTML",
@@ -366,11 +213,14 @@ bot.command("start", async (ctx) => {
 });
 
 bot.callbackQuery(/^auth:role:(worker|employer)$/, async (ctx) => {
-  const role = ctx.match[1] as UserRole;
+  await ctx.answerCallbackQuery().catch(() => {});
+  const role = ctx.match[1];
   const telegramId = ctx.from.id;
   const fullName = [ctx.from.first_name, ctx.from.last_name].filter(Boolean).join(" ") || "Foydalanuvchi";
   await upsertUser({ telegram_id: telegramId, full_name: fullName, telegram_username: ctx.from.username ?? null, active_role: role });
-  await ctx.editMessageText(`✅ Rolingiz tanlandi: <b>${role === "employer" ? "💼 Ish beruvchi" : "👷 Ishchi"}</b>.\n\nEndi telefon raqamingizni yuboring:`, { parse_mode: "HTML" });
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText(`✅ Rolingiz tanlandi: <b>${role === "employer" ? "💼 Ish beruvchi" : "👷 Ishchi"}</b>.\n\nEndi telefon raqamingizni yuboring:`, { parse_mode: "HTML" }).catch(() => {});
+  }
   await ctx.reply("Pastdagi tugmani bosing 👇", { reply_markup: contactRequestKeyboard });
 });
 
@@ -413,7 +263,11 @@ bot.hears("➕ Yangi e’lon berish", async (ctx) => {
   if (ctx.from?.id) {
     const user = await getUserByTelegramId(ctx.from.id);
     if (!user || !user.phone) return ctx.reply("Avval ro‘yxatdan o‘ting (/start).");
-    await ctx.conversation.enter("createJobConv");
+    await setUserState(ctx.from.id, { step: "waiting_job_text" });
+    await ctx.reply(
+      `📝 <b>Yangi e’lon yaratish</b>\n\nE’lon haqida barcha ma’lumotlarni bitta xabarda erkin matn bilan yozing:\n<i>Masalan: “Ertaga Chilonzorda 2 ta yuk tashuvchi kerak, 250 mingdan”</i>\n\n✨ Tizimimiz uni avtomatik tarzda tayyor e’longa aylantiradi!`,
+      { parse_mode: "HTML", reply_markup: { keyboard: [[{ text: "❌ Bekor qilish" }]], resize_keyboard: true } }
+    );
   }
 });
 
@@ -440,6 +294,7 @@ bot.hears("📋 Mening e’lonlarim", async (ctx) => {
 
 // View Applicants
 bot.callbackQuery(/^emp:apps:(.+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const jobId = ctx.match[1];
   const { data: job } = await supabase.from("jobs").select("*").eq("id", jobId).single();
   const { data: apps } = await supabase.from("applications").select("*, worker:users!worker_id(*)").eq("job_id", jobId).neq("status", "withdrawn");
@@ -475,6 +330,7 @@ bot.callbackQuery(/^emp:apps:(.+)$/, async (ctx) => {
 
 // Select Application
 bot.callbackQuery(/^emp:select:(.+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const appId = ctx.match[1];
   const { data: app } = await supabase.from("applications").update({ status: "selected" }).eq("id", appId).select("*, worker:users!worker_id(*), job:jobs!job_id(*, employer:users!employer_id(*))").single();
   if (!app) return;
@@ -508,9 +364,12 @@ bot.callbackQuery(/^emp:select:(.+)$/, async (ctx) => {
 
 // Reject Application
 bot.callbackQuery(/^emp:reject:(.+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const appId = ctx.match[1];
   const { data: app } = await supabase.from("applications").update({ status: "rejected" }).eq("id", appId).select("*, worker:users!worker_id(*), job:jobs!job_id(*)").single();
-  await ctx.editMessageText("❌ Ushbu nomzod arizasi rad etildi.");
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText("❌ Ushbu nomzod arizasi rad etildi.").catch(() => {});
+  }
   if (app?.worker?.telegram_id) {
     const rejText = `ℹ️ Hurmatli <b>${app.worker.full_name}</b>, sizning <b>“${app.job?.title || "E’lon"}”</b> bo‘yicha arizangiz rad etildi.\n\nXafa bo‘lmang, boshqa ishlar ko‘p! 👇`;
     await bot.api.sendMessage(app.worker.telegram_id, rejText, { parse_mode: "HTML", reply_markup: new InlineKeyboard().text("🔍 Boshqa ishlarni ko‘rish", "worker:feed:all:0") }).catch(() => {});
@@ -519,10 +378,13 @@ bot.callbackQuery(/^emp:reject:(.+)$/, async (ctx) => {
 
 // Finish Job & Rate
 bot.callbackQuery(/^emp:finish:(.+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const jobId = ctx.match[1];
   await supabase.from("jobs").update({ status: "completed" }).eq("id", jobId);
   const { data: apps } = await supabase.from("applications").select("*, worker:users!worker_id(*)").eq("job_id", jobId).eq("status", "selected");
-  await ctx.editMessageText("🏁 <b>Ish yakunlandi!</b> Qatnashgan ishchilarni baholang:", { parse_mode: "HTML" });
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText("🏁 <b>Ish yakunlandi!</b> Qatnashgan ishchilarni baholang:", { parse_mode: "HTML" }).catch(() => {});
+  }
   for (const app of apps || []) {
     if (app.worker) {
       const kb = new InlineKeyboard().text("⭐️ 1", `emp:rate:${jobId}:${app.worker.id}:1`).text("⭐️ 2", `emp:rate:${jobId}:${app.worker.id}:2`).text("⭐️ 3", `emp:rate:${jobId}:${app.worker.id}:3`).text("⭐️ 4", `emp:rate:${jobId}:${app.worker.id}:4`).text("⭐️ 5", `emp:rate:${jobId}:${app.worker.id}:5`);
@@ -532,13 +394,16 @@ bot.callbackQuery(/^emp:finish:(.+)$/, async (ctx) => {
 });
 
 bot.callbackQuery(/^emp:rate:(.+):(.+):(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const jobId = ctx.match[1];
   const workerUserId = ctx.match[2];
   const rating = parseInt(ctx.match[3], 10);
   const user = await getUserByTelegramId(ctx.from.id);
   if (user) {
     await supabase.from("reviews").upsert({ job_id: jobId, author_id: user.id, recipient_id: workerUserId, rating }, { onConflict: "job_id,author_id" });
-    await ctx.editMessageText(`✅ <b>Ishchiga ${"⭐️".repeat(rating)} baho berildi!</b>`, { parse_mode: "HTML" });
+    if (ctx.callbackQuery.message) {
+      await ctx.editMessageText(`✅ <b>Ishchiga ${"⭐️".repeat(rating)} baho berildi!</b>`, { parse_mode: "HTML" }).catch(() => {});
+    }
     const { data: worker } = await supabase.from("users").select("telegram_id").eq("id", workerUserId).single();
     if (worker?.telegram_id) {
       await bot.api.sendMessage(worker.telegram_id, `🎉 <b>Ish beruvchi sizga ${"⭐️".repeat(rating)} baho berdi!</b>`, { parse_mode: "HTML" }).catch(() => {});
@@ -557,6 +422,7 @@ bot.hears("🔍 Ishlarni ko‘rish", async (ctx) => {
 });
 
 bot.callbackQuery(/^worker:feed:(.+):(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const categoryParam = ctx.match[1];
   const offset = parseInt(ctx.match[2], 10);
   let q = supabase.from("jobs").select("*, employer:users!employer_id(*)", { count: "exact" }).eq("status", "published").order("created_at", { ascending: false });
@@ -565,7 +431,10 @@ bot.callbackQuery(/^worker:feed:(.+):(\d+)$/, async (ctx) => {
   const total = count || 0;
 
   if (total === 0 || !jobs || jobs.length === 0) {
-    return ctx.editMessageText("Hozircha e’lonlar yo‘q.", { reply_markup: new InlineKeyboard().text("🔙 Kategoriyalar", "worker:back_categories") });
+    if (ctx.callbackQuery.message) {
+      return ctx.editMessageText("Hozircha e’lonlar yo‘q.", { reply_markup: new InlineKeyboard().text("🔙 Kategoriyalar", "worker:back_categories") }).catch(() => {});
+    }
+    return ctx.reply("Hozircha e’lonlar yo‘q.");
   }
 
   const job = jobs[0];
@@ -587,20 +456,28 @@ bot.callbackQuery(/^worker:feed:(.+):(\d+)$/, async (ctx) => {
   if (offset + 1 < total) kb.text("Keyingisi ➡️", `worker:feed:${categoryParam}:${offset + 1}`);
   kb.row().text("📂 Kategoriyalar", "worker:back_categories");
 
-  await ctx.editMessageText(lines.join("\n"), { parse_mode: "HTML", reply_markup: kb });
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText(lines.join("\n"), { parse_mode: "HTML", reply_markup: kb }).catch(() => {});
+  } else {
+    await ctx.reply(lines.join("\n"), { parse_mode: "HTML", reply_markup: kb });
+  }
 });
 
 bot.callbackQuery("worker:back_categories", async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const kb = new InlineKeyboard().text("🌐 Barcha kategoriyalar", "worker:feed:all:0").row();
   JOB_CATEGORIES.forEach((c, idx) => {
     kb.text(c, `worker:feed:${c}:0`);
     if (idx % 2 === 1) kb.row();
   });
-  await ctx.editMessageText("Kategoriyani tanlang:", { reply_markup: kb });
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText("Kategoriyani tanlang:", { reply_markup: kb }).catch(() => {});
+  }
 });
 
 // Worker Apply with Group Support
 bot.callbackQuery(/^worker:apply:(.+):(.+):(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const jobId = ctx.match[1];
   const categoryParam = ctx.match[2];
   const offset = ctx.match[3];
@@ -621,16 +498,19 @@ bot.callbackQuery(/^worker:apply:(.+):(.+):(\d+)$/, async (ctx) => {
       if (count % 2 === 1) pKb.row();
     }
     pKb.row().text("🔙 Ortga", `worker:feed:${categoryParam}:${offset}`);
-    return ctx.editMessageText(`👥 <b>Necha kishi bo‘lib ishlamoqchisiz?</b>\nE’londa <b>${remaining} ta</b> o‘rin mavjud:\nKunlik haq: ${job.pay_amount.toLocaleString()} so‘mdan`, {
-      parse_mode: "HTML",
-      reply_markup: pKb,
-    });
+    if (ctx.callbackQuery.message) {
+      return ctx.editMessageText(`👥 <b>Necha kishi bo‘lib ishlamoqchisiz?</b>\nE’londa <b>${remaining} ta</b> o‘rin mavjud:\nKunlik haq: ${job.pay_amount.toLocaleString()} so‘mdan`, {
+        parse_mode: "HTML",
+        reply_markup: pKb,
+      }).catch(() => {});
+    }
   }
 
   await applyWithParty(ctx, job, user, 1);
 });
 
 bot.callbackQuery(/^worker:apply_p:(.+):(\d+):(.+):(\d+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const jobId = ctx.match[1];
   const partySize = parseInt(ctx.match[2], 10) || 1;
   const user = await getUserByTelegramId(ctx.from.id);
@@ -706,12 +586,16 @@ bot.hears("📄 Mening arizalarim", async (ctx) => {
 });
 
 bot.callbackQuery(/^worker:withdraw:(.+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const appId = ctx.match[1];
   await supabase.from("applications").update({ status: "withdrawn" }).eq("id", appId);
-  await ctx.editMessageText("❌ Ushbu arizangiz bekor qilindi.");
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText("❌ Ushbu arizangiz bekor qilindi.").catch(() => {});
+  }
 });
 
 bot.callbackQuery(/^worker:cancel_acc_prompt:(.+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const appId = ctx.match[1];
   const kb = new InlineKeyboard()
     .text("🤒 Sog‘lig‘im to‘g‘ri kelmadi", `worker:cancel_acc_do:${appId}:Sog'liq sababli`)
@@ -719,14 +603,19 @@ bot.callbackQuery(/^worker:cancel_acc_prompt:(.+)$/, async (ctx) => {
     .text("🚗 Boshqa reja chiqib qoldi", `worker:cancel_acc_do:${appId}:Boshqa reja`)
     .row()
     .text("🔙 Ortga", "worker:cancel_acc_back");
-  await ctx.editMessageText("⚠️ Ishga bora olmasligingiz sababini tanlang (ish beruvchiga xabar boradi):", { parse_mode: "HTML", reply_markup: kb });
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText("⚠️ Ishga bora olmasligingiz sababini tanlang (ish beruvchiga xabar boradi):", { parse_mode: "HTML", reply_markup: kb }).catch(() => {});
+  }
 });
 
 bot.callbackQuery(/^worker:cancel_acc_do:(.+):(.+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const appId = ctx.match[1];
   const reason = ctx.match[2];
   const { data: app } = await supabase.from("applications").update({ status: "withdrawn", note: `Bekor qilindi: ${reason}` }).eq("id", appId).select("*, worker:users!worker_id(*), job:jobs!job_id(*, employer:users!employer_id(*))").single();
-  await ctx.editMessageText(`🚫 <b>Bekor qilindi.</b> Sabab: <i>${reason}</i>\nIsh beruvchiga xabar berildi.`, { parse_mode: "HTML" });
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText(`🚫 <b>Bekor qilindi.</b> Sabab: <i>${reason}</i>\nIsh beruvchiga xabar berildi.`, { parse_mode: "HTML" }).catch(() => {});
+  }
 
   if (app?.job?.status === "filled") {
     await supabase.from("jobs").update({ status: "published" }).eq("id", app.job.id);
@@ -739,7 +628,10 @@ bot.callbackQuery(/^worker:cancel_acc_do:(.+):(.+)$/, async (ctx) => {
 });
 
 bot.callbackQuery("worker:cancel_acc_back", async (ctx) => {
-  await ctx.editMessageText("Bekor qilish bekor qilindi.");
+  await ctx.answerCallbackQuery().catch(() => {});
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText("Bekor qilish bekor qilindi.").catch(() => {});
+  }
 });
 
 // Profile View
@@ -767,7 +659,76 @@ bot.hears("👤 Mening profilim", async (ctx) => {
 });
 
 bot.callbackQuery("worker:edit_profile", async (ctx) => {
-  await ctx.conversation.enter("editProfileConv");
+  await ctx.answerCallbackQuery().catch(() => {});
+  await setUserState(ctx.from.id, { step: "edit_profile_name" });
+  await ctx.reply("Ism va familiyangizni kiriting:", { parse_mode: "HTML", reply_markup: { keyboard: [[{ text: "❌ Bekor qilish" }]], resize_keyboard: true } });
+});
+
+// Step-based text handler
+bot.on("message:text", async (ctx) => {
+  const text = ctx.message.text.trim();
+  const user = await getUserByTelegramId(ctx.from.id);
+  const state = user?.bot_state || {};
+  const step = state.step;
+
+  if (text === "❌ Bekor qilish" || text === "/cancel") {
+    await setUserState(ctx.from.id, {});
+    const menu = user?.active_role === "employer" ? getEmployerMainMenu() : getWorkerMainMenu();
+    return ctx.reply("Bekor qilindi.", { reply_markup: menu });
+  }
+
+  // Job Creation Text
+  if (step === "waiting_job_text") {
+    await setUserState(ctx.from.id, {});
+    await ctx.reply("⏳ <i>E’loningiz tahlil qilinmoqda...</i>", { parse_mode: "HTML" });
+    const parsed = await parseJobWithAI(text);
+    if (!user) return;
+
+    const { data: newJob } = await supabase.from("jobs").insert({
+      employer_id: user.id,
+      category: parsed.category,
+      title: parsed.title,
+      description: parsed.description,
+      district: parsed.district,
+      address: parsed.address,
+      starts_at: parsed.startsAt,
+      ends_at: parsed.endsAt,
+      pay_amount: parsed.payAmount,
+      openings: parsed.openings,
+      status: "pending_moderation",
+    }).select().single();
+
+    if (newJob) {
+      const adminText = `🔔 <b>Yangi e’lon (Moderatsiya):</b>\n\n📌 <b>Sarlavha:</b> ${newJob.title}\n📂 <b>Kategoriya:</b> ${newJob.category}\n📍 <b>Manzil:</b> ${newJob.district}, ${newJob.address}\n💰 <b>Haq:</b> ${newJob.pay_amount.toLocaleString()} so‘m\n👥 <b>Ishchilar:</b> ${newJob.openings} ta\n👤 <b>Ish beruvchi:</b> ${user.full_name} (${user.phone || ""})\n\n📝 <b>Tavsif:</b>\n${newJob.description}`;
+      const modKb = new InlineKeyboard().text("✅ Tasdiqlash", `admin:mod:${newJob.id}:publish`).text("❌ Rad etish", `admin:mod:${newJob.id}:reject`);
+      for (const adminId of ADMIN_IDS) {
+        await modBot.api.sendMessage(adminId, adminText, { parse_mode: "HTML", reply_markup: modKb }).catch(() => {});
+      }
+    }
+
+    await ctx.reply("🎉 <b>E’loningiz moderatsiyaga yuborildi!</b>\n\nAdmin tasdiqlashi bilan ishchilarga ko‘rinadi.", {
+      parse_mode: "HTML",
+      reply_markup: getEmployerMainMenu(),
+    });
+    return;
+  }
+
+  // Profile Edit steps
+  if (step === "edit_profile_name") {
+    await supabase.from("users").update({ full_name: text, bot_state: { step: "edit_profile_district" } }).eq("telegram_id", ctx.from.id);
+    return ctx.reply("Yashash tumaningizni kiriting (Masalan: <i>Chilonzor</i>):", { parse_mode: "HTML" });
+  }
+
+  if (step === "edit_profile_district") {
+    await supabase.from("users").update({ district: text, bot_state: { step: "edit_profile_exp" } }).eq("telegram_id", ctx.from.id);
+    return ctx.reply("Ish tajribangiz (necha yil, masalan: <i>2</i>):", { parse_mode: "HTML" });
+  }
+
+  if (step === "edit_profile_exp") {
+    const exp = parseInt(text, 10) || 0;
+    await supabase.from("users").update({ experience_years: exp, bot_state: {} }).eq("telegram_id", ctx.from.id);
+    return ctx.reply("✅ <b>Profilingiz yangilandi!</b>", { parse_mode: "HTML", reply_markup: getWorkerMainMenu() });
+  }
 });
 
 // MODERATION BOT HANDLERS
@@ -812,13 +773,16 @@ modBot.hears("📊 Statistika", async (ctx) => {
 });
 
 modBot.callbackQuery(/^admin:mod:(.+):(publish|reject)$/, async (ctx) => {
+  await ctx.answerCallbackQuery().catch(() => {});
   const jobId = ctx.match[1];
   const action = ctx.match[2];
   const nextStatus = action === "publish" ? "published" : "cancelled";
 
   const { data: job } = await supabase.from("jobs").update({ status: nextStatus }).eq("id", jobId).select("*, employer:users!employer_id(*)").single();
   const icon = action === "publish" ? "✅ Tasdiqlandi (Faol)" : "❌ Rad etildi";
-  await ctx.editMessageText(`${ctx.callbackQuery.message?.text}\n\n───────────────\n<b>${icon} (Admin: ${ctx.from.first_name})</b>`, { parse_mode: "HTML" });
+  if (ctx.callbackQuery.message) {
+    await ctx.editMessageText(`${ctx.callbackQuery.message?.text}\n\n───────────────\n<b>${icon} (Admin: ${ctx.from.first_name})</b>`, { parse_mode: "HTML" }).catch(() => {});
+  }
 
   if (action === "publish" && job) {
     if (job.employer?.telegram_id) {
@@ -832,30 +796,20 @@ const handleMainWebhook = webhookCallback(bot, "std/http");
 const handleModWebhook = webhookCallback(modBot, "std/http");
 
 Deno.serve(async (req: Request) => {
-  const url = new URL(req.url);
-  const botType = url.searchParams.get("bot");
-  const action = url.searchParams.get("action");
+  try {
+    const url = new URL(req.url);
+    const botType = url.searchParams.get("bot");
 
-  // Webhook registration helper endpoint
-  if (action === "set_webhooks") {
-    const baseUrl = `${url.origin}${url.pathname}`;
-    const mainRes = await fetch(`https://api.telegram.org/bot${MAIN_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(`${baseUrl}?bot=main`)}`);
-    const modRes = await fetch(`https://api.telegram.org/bot${MOD_BOT_TOKEN}/setWebhook?url=${encodeURIComponent(`${baseUrl}?bot=mod`)}`);
-    const mainJson = await mainRes.json();
-    const modJson = await modRes.json();
-    return new Response(JSON.stringify({ mainBotWebhook: mainJson, modBotWebhook: modJson }), {
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  if (req.method === "POST") {
-    if (botType === "mod") {
-      return handleModWebhook(req);
+    if (req.method === "POST") {
+      if (botType === "mod") {
+        return await handleModWebhook(req);
+      }
+      return await handleMainWebhook(req);
     }
-    return handleMainWebhook(req);
-  }
 
-  return new Response(JSON.stringify({ status: "ok", service: "JobTop Supabase Telegram Webhook" }), {
-    headers: { "Content-Type": "application/json" },
-  });
+    return new Response(JSON.stringify({ status: "ok", service: "JobTop Supabase Telegram Webhook" }), { headers: { "Content-Type": "application/json" } });
+  } catch (err: any) {
+    console.error("Global webhook error:", err);
+    return new Response("ok", { status: 200 });
+  }
 });
