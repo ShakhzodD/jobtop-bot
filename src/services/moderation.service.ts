@@ -1,8 +1,7 @@
-import { Bot, InlineKeyboard } from "grammy";
+import { Api, InlineKeyboard } from "grammy";
 import { supabase } from "../core/supabase.js";
 import { config } from "../config/env.js";
 import { DBJob, updateJobStatus } from "./job.service.js";
-import { MyContext } from "../types/context.js";
 
 export async function moderateJob(
   jobId: string,
@@ -32,7 +31,7 @@ export async function moderateJob(
 }
 
 export async function notifyAdminsAboutJob(
-  bot: Bot<MyContext>,
+  modBotApi: Api,
   job: {
     id: string;
     title: string;
@@ -68,7 +67,7 @@ export async function notifyAdminsAboutJob(
 
   for (const adminId of admins) {
     try {
-      await bot.api.sendMessage(adminId, text, {
+      await modBotApi.sendMessage(adminId, text, {
         parse_mode: "HTML",
         reply_markup: keyboard,
       });
@@ -79,7 +78,7 @@ export async function notifyAdminsAboutJob(
 }
 
 export async function broadcastJobToMatchingWorkers(
-  bot: Bot<MyContext>,
+  mainBotApi: Api,
   job: DBJob
 ) {
   // Find workers interested in this category
@@ -108,7 +107,7 @@ export async function broadcastJobToMatchingWorkers(
 
   for (const worker of matchingWorkers) {
     try {
-      await bot.api.sendMessage(worker.telegram_id, text, {
+      await mainBotApi.sendMessage(worker.telegram_id, text, {
         parse_mode: "HTML",
         reply_markup: keyboard,
       });

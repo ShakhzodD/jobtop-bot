@@ -5,6 +5,7 @@ import { createJob } from "../services/job.service.js";
 import { getUserByTelegramId } from "../services/user.service.js";
 import { notifyAdminsAboutJob } from "../services/moderation.service.js";
 import { getEmployerMainMenu } from "../keyboards/main-menu.js";
+import { modBot } from "../core/bots.js";
 
 export async function createJobConversation(
   conversation: MyConversation,
@@ -107,9 +108,9 @@ export async function createJobConversation(
         })
       );
 
-      // Notify admins
+      // Notify admins via Moderation Bot
       await conversation.external(() =>
-        notifyAdminsAboutJob(ctx.api as any, createdJob)
+        notifyAdminsAboutJob(modBot.api, createdJob)
       );
 
       await ctx.api.deleteMessage(ctx.chat!.id, previewMsg.message_id).catch(() => {});
