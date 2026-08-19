@@ -58,3 +58,13 @@ const stopRunners = () => {
 
 process.once("SIGINT", stopRunners);
 process.once("SIGTERM", stopRunners);
+
+// Health check server for Cloud Hosting (Render / Railway / Fly.io / Koyeb)
+import http from "node:http";
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ status: "ok", service: "JobTop Telegram Bot", uptime: process.uptime() }));
+}).listen(PORT, () => {
+  console.log(`📡 Health check server listening on port ${PORT}`);
+});
