@@ -55,7 +55,7 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
         `Siz <b>JobTop Moderatsiya Boti</b>dasiz.\n\n` +
         `• Barcha yangi e’lonlar to‘g‘ridan-to‘g‘ri shu yerga keladi.\n` +
         `• <b>📋 Moderatsiyadagi e’lonlar</b> tugmasi orqali ko‘rib chiqilmagan e’lonlar ro‘yxatini olishingiz mumkin.\n` +
-        `• Boshqa kanallardan postlarni shu botga <b>forward</b> qilsangiz, Gemini AI uni avtomatik import qiladi.`,
+        `• Boshqa kanallardan postlarni shu botga <b>forward</b> qilsangiz, tizim uni avtomatik tahlil qilib import qiladi.`,
       {
         parse_mode: "HTML",
         reply_markup: moderationMenuKeyboard,
@@ -215,7 +215,7 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       }
     }
 
-    await ctx.reply("🤖 <i>Forward qilingan e’lon Gemini AI orqali tahlil qilinmoqda...</i>", {
+    await ctx.reply("⏳ <i>Forward qilingan e’lon tahlil qilinmoqda...</i>", {
       parse_mode: "HTML",
     });
 
@@ -246,7 +246,7 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       }
     } catch (error: any) {
       console.error("Forward import error:", error);
-      await ctx.reply(`❌ Importda xatolik: ${error?.message || "Noma'lum xatolik"}`);
+      await ctx.reply(`❌ Importda xatolik yuz berdi.`);
     }
   });
 }

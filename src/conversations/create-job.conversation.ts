@@ -22,9 +22,9 @@ export async function createJobConversation(
 
   await ctx.reply(
     `📝 <b>Yangi e’lon yaratish</b>\n\n` +
-      `E’loningiz haqida barcha ma’lumotlarni <b>bitta xabarda erkin matn bilan yozing</b> (yoki ovozli xabar yuboring).\n\n` +
+      `E’loningiz haqidagi barcha ma’lumotlarni <b>bitta xabarda erkin matn bilan yozing</b> (yoki ovozli xabar yuboring).\n\n` +
       `<i>Masalan: “Ertaga Chilonzorda 2 ta baquvvat yigit kerak, mebel ko‘chirishga. Soat 09:00 dan 18:00 gacha. Kunlik haq: 250 000 so‘m. Tushlik beriladi.”</i>\n\n` +
-      `🤖 Bizning AI uni avtomatik tarzda chiroyli e’longa aylantiradi!`,
+      `✨ Tizimimiz uni avtomatik tarzda tayyor e’longa aylantiradi!`,
     {
       parse_mode: "HTML",
       reply_markup: {
@@ -45,7 +45,7 @@ export async function createJobConversation(
     return;
   }
 
-  await ctx.reply("⏳ <i>Gemini AI e’loningizni tahlil qilmoqda...</i>", {
+  await ctx.reply("⏳ <i>E’loningiz tahlil qilinmoqda, bir oz kuting...</i>", {
     parse_mode: "HTML",
   });
 
@@ -128,9 +128,9 @@ export async function createJobConversation(
       });
     }
   } catch (err: any) {
-    console.error("Error creating job with AI:", err);
+    console.error("Error creating job:", err);
     await ctx.reply(
-      `❌ E’lonni tahlil qilishda xatolik yuz berdi: ${err?.message || "Noma'lum xatolik"}.\n\nQaytadan urinib ko‘ring.`,
+      `❌ E’lonni shakllantirishda xatolik yuz berdi. Iltimos, qaytadan urinib ko‘ring.`,
       {
         reply_markup: getEmployerMainMenu(),
       }
