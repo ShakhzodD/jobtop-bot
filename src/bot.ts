@@ -1,5 +1,13 @@
 import http from "node:http";
 
+// Global uncaught exception protection
+process.on("uncaughtException", (err) => {
+  console.error("Global uncaughtException:", err);
+});
+process.on("unhandledRejection", (reason) => {
+  console.error("Global unhandledRejection:", reason);
+});
+
 // 1. Immediate Health Check Server for Cloud Hosting (Render / Railway / Koyeb)
 const PORT = Number(process.env.PORT) || 3000;
 const server = http.createServer((req, res) => {
@@ -49,12 +57,12 @@ registerAdminHandlers(modBot, bot);
 
 // Catch errors
 bot.catch((err) => {
-  console.error(`Main Bot error on update ${err.ctx.update.update_id}:`, err.error);
+  console.error(`Main Bot error on update ${err.ctx.update?.update_id}:`, err.error);
 });
 
 if (modBot !== bot) {
   modBot.catch((err) => {
-    console.error(`Moderation Bot error on update ${err.ctx.update.update_id}:`, err.error);
+    console.error(`Moderation Bot error on update ${err.ctx.update?.update_id}:`, err.error);
   });
 }
 

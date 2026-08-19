@@ -4,19 +4,14 @@ import { MyContext, SessionData } from "../types/context.js";
 
 validateEnv();
 
-if (!config.telegramBotToken) {
-  console.error("❌ Xatolik: TELEGRAM_BOT_TOKEN topilmadi. .env faylini to'ldiring.");
-  process.exit(1);
-}
+const token = config.telegramBotToken || process.env.TELEGRAM_BOT_TOKEN || "8995693178:AAGcgGQTYIhxrsYR1cIQGpLuaFciDU2EFEA";
+const modToken = config.moderationBotToken || process.env.MODERATION_BOT_TOKEN || "8037368717:AAG0fjAbDAVABLOFi9gUUM0seaQCfEw77B4";
 
 // 1. Main User Bot (@jobtopuzbot)
-export const bot = new Bot<MyContext>(config.telegramBotToken);
+export const bot = new Bot<MyContext>(token);
 
 // 2. Dedicated Moderation Bot (@jobtopmoderationbot)
-export const modBot =
-  config.moderationBotToken && config.moderationBotToken !== config.telegramBotToken
-    ? new Bot<MyContext>(config.moderationBotToken)
-    : bot;
+export const modBot = modToken && modToken !== token ? new Bot<MyContext>(modToken) : bot;
 
 function initialSession(): SessionData {
   return {};
