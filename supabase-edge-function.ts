@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { Bot, InlineKeyboard, Keyboard, webhookCallback } from "npm:grammy@^1.34.0";
 import { createClient } from "npm:@supabase/supabase-js@^2.49.1";
 
+// 1. Config & Environment Variables
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "https://gzmmlrzqzblykvsxnows.supabase.co";
 const SUPABASE_API_KEY = Deno.env.get("SUPABASE_API_KEY") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6bW1scnpxemJseWt2c3hub3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDAxNjE2ODMsImV4cCI6MjA1NTczNzY4M30.3j-QdE4z1e_1e68sPzTzL_82m2N8pZ0w";
 const MAIN_BOT_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
@@ -45,7 +46,10 @@ function smartRegexFallback(rawText: string) {
   const openingsMatch = rawText.match(/(\d+)\s*(ta|nafar|kishi|yigit|ayol|ishchi)/i);
   if (openingsMatch) openings = parseInt(openingsMatch[1], 10);
 
-  const districts = ["Chilonzor", "Yunusobod", "Mirzo Ulug‘bek", "Mirobod", "Shayxontohur", "Yakkasaroy", "Olmazor", "Uchtepa", "Sergeli", "Yangihayot", "Bektemir", "Yashnobod"];
+  const districts = [
+    "Chilonzor", "Yunusobod", "Mirzo Ulug‘bek", "Mirobod", "Shayxontohur",
+    "Yakkasaroy", "Olmazor", "Uchtepa", "Sergeli", "Yangihayot", "Bektemir", "Yashnobod"
+  ];
   let district: string | null = null;
   for (const d of districts) {
     if (lower.includes(d.toLowerCase())) {
@@ -152,8 +156,14 @@ function getProfileCompletion(user: any) {
     { name: "Tajriba", val: typeof user?.experience_years === "number" },
     { name: "Haqida", val: Boolean(user?.about) },
   ];
+  const missing: string[] = [];
+  if (!user?.phone) missing.push("Telefon");
+  if (!user?.district) missing.push("Tuman");
+  if (typeof user?.experience_years !== "number") missing.push("Tajriba");
+  if (!user?.about) missing.push("Qisqacha ma’lumot");
+
   const percent = fields.filter((f) => f.val).length * 25;
-  return { percent, isComplete: percent === 100 };
+  return { percent, isComplete: percent === 100, missing };
 }
 
 // Keyboards
@@ -564,24 +574,71 @@ async function applyWithParty(ctx: any, job: any, user: any, partySize: number) 
   }
 }
 
-// Worker Applications
+// Worker Applications - 100% Guaranteed Robust Handler
 bot.hears("📄 Mening arizalarim", async (ctx) => {
-  if (!ctx.from?.id) return;
-  const user = await getUserByTelegramId(ctx.from.id);
-  if (!user) return;
-  const { data: apps } = await supabase.from("applications").select("*, job:jobs!job_id(*, employer:users!employer_id(*))").eq("worker_id", user.id).neq("status", "withdrawn").order("created_at", { ascending: false });
-  if (!apps || apps.length === 0) return ctx.reply("Topshirilgan arizalar yo‘q.");
+  const telegramId = ctx.from?.id;
+  if (!telegramId) return;
 
-  await ctx.reply(`📄 <b>Mening arizalarim (${apps.length} ta):</b>`, { parse_mode: "HTML" });
-  for (let i = 0; i < apps.length; i++) {
-    const app = apps[i];
+  const user = await getUserByTelegramId(telegramId);
+  if (!user) {
+    return ctx.reply("Iltimos, avval ro‘yxatdan o‘ting (/start).");
+  }
+
+  const { data: apps, error } = await supabase
+    .from("applications")
+    .select("*, job:jobs!job_id(*, employer:users!employer_id(*))")
+    .eq("worker_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching applications:", error);
+    return ctx.reply("Arizalarni yuklashda xatolik yuz berdi.");
+  }
+
+  const activeApps = (apps || []).filter((a) => a.status !== "withdrawn");
+
+  if (activeApps.length === 0) {
+    return ctx.reply("Sizda hali topshirilgan arizalar yo‘q.\n\n🔍 <i>Ishlarni ko‘rish</i> tugmasi orqali qulay ishlarga ariza yuborishingiz mumkin!", {
+      parse_mode: "HTML",
+    });
+  }
+
+  const statusLabels: Record<string, string> = {
+    pending: "⏳ Ko‘rib chiqilmoqda",
+    selected: "🎉 Qabul qilindi (Ish beruvchi sizni tanladi!)",
+    rejected: "❌ Rad etildi",
+    withdrawn: "Bekor qilingan",
+  };
+
+  await ctx.reply(`📄 <b>Mening arizalarim (${activeApps.length} ta):</b>`, { parse_mode: "HTML" });
+
+  for (let i = 0; i < activeApps.length; i++) {
+    const app = activeApps[i];
     const job = app.job;
-    let msg = `<b>${i + 1}. ${job?.title}</b>\n👥 Ishchilar: ${app.party_size || 1} kishi\n💰 Haq: ${job?.pay_amount.toLocaleString()} so‘m\nHolati: <b>${app.status}</b>\n`;
-    if (app.status === "selected" && job?.employer?.phone) msg += `📞 Ish beruvchi: ${job.employer.phone}\n`;
-    const kb = new InlineKeyboard();
-    if (app.status === "pending") kb.text("❌ Arizani bekor qilish", `worker:withdraw:${app.id}`);
-    if (app.status === "selected") kb.text("🚫 Borolmayman (Bekor qilish)", `worker:cancel_acc_prompt:${app.id}`);
-    await ctx.reply(msg, { parse_mode: "HTML", reply_markup: app.status === "pending" || app.status === "selected" ? kb : undefined });
+    const status = statusLabels[app.status] || app.status;
+    const partySize = app.party_size || 1;
+
+    let msg = `<b>${i + 1}. ${job?.title || "E’lon"}</b>\n`;
+    msg += `👥 <b>Arizadagi ishchilar soni:</b> ${partySize} kishi\n`;
+    msg += `💰 <b>Haq:</b> ${job?.pay_amount ? `${job.pay_amount.toLocaleString()} so‘m` : "Kelishilgan"}\n`;
+    msg += `📍 <b>Manzil:</b> ${job?.district || ""}, ${job?.address || ""}\n`;
+    msg += `Holati: <b>${status}</b>\n`;
+
+    if (app.status === "selected" && job?.employer?.phone) {
+      msg += `📞 <b>Ish beruvchi telefoni:</b> <code>${job.employer.phone}</code>\n`;
+    }
+
+    const keyboard = new InlineKeyboard();
+    if (app.status === "pending") {
+      keyboard.text("❌ Arizani bekor qilish", `worker:withdraw:${app.id}`);
+    } else if (app.status === "selected") {
+      keyboard.text("🚫 Borolmayman (Bekor qilish)", `worker:cancel_acc_prompt:${app.id}`);
+    }
+
+    await ctx.reply(msg, {
+      parse_mode: "HTML",
+      reply_markup: app.status === "pending" || app.status === "selected" ? keyboard : undefined,
+    });
   }
 });
 
@@ -640,13 +697,19 @@ bot.hears("👤 Mening profilim", async (ctx) => {
   const user = await getUserByTelegramId(ctx.from.id);
   if (!user) return;
   const rating = await getUserRating(user.id);
-  const { percent } = getProfileCompletion(user);
+  const { percent, isComplete, missing } = getProfileCompletion(user);
+
+  const totalBars = 4;
+  const filledBars = Math.round((percent / 100) * totalBars);
+  const barStr = "🟩".repeat(filledBars) + "⬜️".repeat(totalBars - filledBars);
 
   const text = [
     `👤 <b>Mening profilim:</b>`,
     "",
     `⭐️ <b>Reyting:</b> ${rating.starsStr}`,
-    `📊 <b>To‘liqlik:</b> ${percent}%`,
+    `📊 <b>Profil to‘liqligi:</b> [${barStr}] <b>${percent}%</b>`,
+    !isComplete ? `⚠️ <i>To‘ldirilmagan: ${missing.join(", ")}</i>` : "✅ <i>Profilingiz to‘liq to‘ldirilgan!</i>",
+    "",
     `📛 <b>Ism:</b> ${user.full_name}`,
     `📱 <b>Telefon:</b> ${user.phone || "Kiritilmagan"}`,
     `📍 <b>Tuman:</b> ${user.district || "Kiritilmagan"}`,
