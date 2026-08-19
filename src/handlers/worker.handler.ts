@@ -8,7 +8,9 @@ import { getPublishedJobs, getJobById, DBJob } from "../services/job.service.js"
 import {
   applyForJob,
   getWorkerApplications,
+  withdrawApplication,
 } from "../services/application.service.js";
+import { getUserRating } from "../services/review.service.js";
 import { JOB_CATEGORIES } from "../core/gemini.js";
 import { supabase } from "../core/supabase.js";
 
@@ -35,9 +37,9 @@ function renderJobCard(job: DBJob, index: number, total: number) {
   return lines.filter(Boolean).join("\n");
 }
 
-export function registerWorkerHandlers(bot: Bot<MyContext>) {
+export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   // Feed / Ishlarni ko'rish
-  bot.hears("🔍 Ishlarni ko‘rish", async (ctx) => {
+  mainBot.hears("🔍 Ishlarni ko‘rish", async (ctx) => {
     const keyboard = new InlineKeyboard();
     keyboard.text("🌐 Barcha kategoriyalar", "worker:feed:all:0").row();
 
@@ -52,7 +54,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
   });
 
   // Browse Jobs Callback
-  bot.callbackQuery(/^worker:feed:(.+):(\d+)$/, async (ctx) => {
+  mainBot.callbackQuery(/^worker:feed:(.+):(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const categoryParam = ctx.match[1];
     const offset = parseInt(ctx.match[2], 10);
@@ -115,7 +117,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
     });
   });
 
-  bot.callbackQuery("worker:back_categories", async (ctx) => {
+  mainBot.callbackQuery("worker:back_categories", async (ctx) => {
     await ctx.answerCallbackQuery();
     const keyboard = new InlineKeyboard();
     keyboard.text("🌐 Barcha kategoriyalar", "worker:feed:all:0").row();
@@ -131,7 +133,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
   });
 
   // Apply for job: Sends candidate info, phone number & username to employer
-  bot.callbackQuery(/^worker:apply:(.+):(.+):(\d+)$/, async (ctx) => {
+  mainBot.callbackQuery(/^worker:apply:(.+):(.+):(\d+)$/, async (ctx) => {
     const jobId = ctx.match[1];
     const telegramId = ctx.from.id;
 
@@ -191,6 +193,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
           .single();
 
         if (empData?.telegram_id) {
+          const userRating = await getUserRating(user.id);
           const usernameStr = ctx.from.username
             ? `@${ctx.from.username}`
             : user.telegram_username
@@ -202,10 +205,11 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
             "",
             `📌 <b>E’lon:</b> ${job.title}`,
             `👤 <b>Nomzod:</b> ${user.full_name}`,
+            `⭐️ <b>Reytingi:</b> ${userRating.starsStr}`,
             user.phone ? `📞 <b>Telefon:</b> <code>${user.phone}</code>` : "",
             usernameStr ? `💬 <b>Telegram:</b> ${usernameStr}` : "",
             user.district ? `📍 <b>Tuman:</b> ${user.district}` : "",
-            user.experience_years ? `💼 <b>Tajriba:</b> ${user.experience_years} yil` : "",
+            user.experience_years !== null ? `💼 <b>Tajriba:</b> ${user.experience_years} yil` : "",
             user.about ? `📝 <b>Ma’lumot:</b> ${user.about}` : "",
             "",
             "Nomzodni ishga qabul qilasizmi?",
@@ -222,7 +226,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
             empKeyboard.row().url("✉️ Nomzodga Telegramdan yozish", `https://t.me/${rawUsername}`);
           }
 
-          await bot.api.sendMessage(empData.telegram_id, applicantText, {
+          await mainBot.api.sendMessage(empData.telegram_id, applicantText, {
             parse_mode: "HTML",
             reply_markup: empKeyboard,
           });
@@ -233,8 +237,8 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
     }
   });
 
-  // View my applications
-  bot.hears("📄 Mening arizalarim", async (ctx) => {
+  // View my applications (With Withdraw Option)
+  mainBot.hears("📄 Mening arizalarim", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
@@ -245,7 +249,9 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
     }
 
     const applications = await getWorkerApplications(user.id);
-    if (applications.length === 0) {
+    const activeApps = applications.filter((a) => a.status !== "withdrawn");
+
+    if (activeApps.length === 0) {
       await ctx.reply(
         "Sizda hali topshirilgan arizalar yo‘q.\n\n🔍 <i>Ishlarni ko‘rish</i> tugmasi orqali qulay ishlarga ariza yuborishingiz mumkin!",
         { parse_mode: "HTML" }
@@ -260,12 +266,16 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
       withdrawn: "Bekor qilingan",
     };
 
-    let msg = `📄 <b>Mening arizalarim (${applications.length} ta):</b>\n\n`;
+    await ctx.reply(`📄 <b>Mening arizalarim (${activeApps.length} ta):</b>`, {
+      parse_mode: "HTML",
+    });
 
-    applications.forEach((app, i) => {
+    for (let i = 0; i < activeApps.length; i++) {
+      const app = activeApps[i];
       const job = app.job;
       const status = statusLabels[app.status] || app.status;
-      msg += `<b>${i + 1}. ${job?.title || "E’lon"}</b>\n`;
+
+      let msg = `<b>${i + 1}. ${job?.title || "E’lon"}</b>\n`;
       msg += `💰 Haq: ${job?.pay_amount ? `${job.pay_amount.toLocaleString()} so‘m` : "Kelishilgan"}\n`;
       msg += `📍 Manzil: ${job?.district || ""}, ${job?.address || ""}\n`;
       msg += `Holati: <b>${status}</b>\n`;
@@ -273,14 +283,36 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
       if (app.status === "selected" && (job as any)?.employer?.phone) {
         msg += `📞 <b>Ish beruvchi telefoni:</b> ${(job as any).employer.phone}\n`;
       }
-      msg += `─────────────\n`;
-    });
 
-    await ctx.reply(msg, { parse_mode: "HTML" });
+      const keyboard = new InlineKeyboard();
+      if (app.status === "pending") {
+        keyboard.text("❌ Arizani bekor qilish", `worker:withdraw:${app.id}`);
+      }
+
+      await ctx.reply(msg, {
+        parse_mode: "HTML",
+        reply_markup: app.status === "pending" ? keyboard : undefined,
+      });
+    }
   });
 
-  // View Profile: Shows completion bar & missing fields
-  bot.hears("👤 Mening profilim", async (ctx) => {
+  // Withdraw application callback
+  mainBot.callbackQuery(/^worker:withdraw:(.+)$/, async (ctx) => {
+    const appId = ctx.match[1];
+    const telegramId = ctx.from.id;
+    const user = await getUserByTelegramId(telegramId);
+    if (!user) return;
+
+    const res = await withdrawApplication(appId, user.id);
+    await ctx.answerCallbackQuery({ text: res.message });
+
+    if (res.success) {
+      await ctx.editMessageText("❌ Ushbu arizangiz bekor qilindi.");
+    }
+  });
+
+  // View Profile: Shows rating, completion bar & categories
+  mainBot.hears("👤 Mening profilim", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
@@ -291,8 +323,8 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
     }
 
     const { percent, isComplete, missing } = getProfileCompletionStatus(user);
+    const userRating = await getUserRating(user.id);
 
-    // Progress bar visualization: e.g. [🟩🟩⬜️⬜️] 50%
     const totalBars = 4;
     const filledBars = Math.round((percent / 100) * totalBars);
     const barStr = "🟩".repeat(filledBars) + "⬜️".repeat(totalBars - filledBars);
@@ -300,6 +332,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
     const profileText = [
       `👤 <b>Mening profilim:</b>`,
       "",
+      `⭐️ <b>Reyting:</b> ${userRating.starsStr}`,
       `📊 <b>Profil to‘liqligi:</b> [${barStr}] <b>${percent}%</b>`,
       !isComplete
         ? `⚠️ <i>To‘ldirilmagan: ${missing.join(", ")}</i>`
@@ -312,6 +345,11 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
         user.experience_years !== null && user.experience_years !== undefined
           ? `${user.experience_years} yil`
           : "Kiritilmagan"
+      }`,
+      `📂 <b>Tanlangan sohalar:</b> ${
+        user.worker_categories && user.worker_categories.length > 0
+          ? user.worker_categories.join(", ")
+          : "Belgilanmagan"
       }`,
       `📝 <b>Haqida:</b> ${user.about || "Kiritilmagan"}`,
       `🔄 <b>Faol rol:</b> ${
@@ -330,7 +368,7 @@ export function registerWorkerHandlers(bot: Bot<MyContext>) {
     });
   });
 
-  bot.callbackQuery("worker:edit_profile", async (ctx) => {
+  mainBot.callbackQuery("worker:edit_profile", async (ctx) => {
     await ctx.answerCallbackQuery();
     await ctx.conversation.enter("editProfileConversation");
   });

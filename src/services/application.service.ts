@@ -1,6 +1,6 @@
 import { supabase } from "../core/supabase.js";
 import { DBUser } from "./user.service.js";
-import { DBJob } from "./job.service.js";
+import { DBJob, updateJobStatus } from "./job.service.js";
 
 export type ApplicationStatus = "pending" | "selected" | "rejected" | "withdrawn";
 
@@ -41,6 +41,24 @@ export async function applyForJob(
         message: "Siz ushbu ishga allaqachon qabul qilingansiz!",
       };
     }
+    if (existing.status === "withdrawn") {
+      // Re-apply if previously withdrawn
+      const { data: updated, error: updateError } = await supabase
+        .from("applications")
+        .update({ status: "pending", note: note ?? null })
+        .eq("id", existing.id)
+        .select("*, worker:users!worker_id(*), job:jobs!job_id(*)")
+        .single();
+
+      if (updateError) {
+        return { success: false, message: "Arizani qayta yuborishda xatolik." };
+      }
+      return {
+        success: true,
+        message: "Arizangiz muvaffaqiyatli qayta yuborildi!",
+        application: updated as DBApplication,
+      };
+    }
     return {
       success: false,
       message: "Siz ushbu e’longa allaqachon ariza topshirgansiz (ko‘rib chiqilmoqda).",
@@ -73,11 +91,30 @@ export async function applyForJob(
   };
 }
 
+export async function withdrawApplication(
+  applicationId: string,
+  workerUserId: string
+): Promise<{ success: boolean; message: string }> {
+  const { error } = await supabase
+    .from("applications")
+    .update({ status: "withdrawn" })
+    .eq("id", applicationId)
+    .eq("worker_id", workerUserId);
+
+  if (error) {
+    console.error("Error withdrawing application:", error);
+    return { success: false, message: "Arizani bekor qilishda xatolik yuz berdi." };
+  }
+
+  return { success: true, message: "Arizangiz muvaffaqiyatli bekor qilindi." };
+}
+
 export async function getJobApplications(jobId: string): Promise<DBApplication[]> {
   const { data, error } = await supabase
     .from("applications")
     .select("*, worker:users!worker_id(*)")
     .eq("job_id", jobId)
+    .neq("status", "withdrawn")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -101,7 +138,9 @@ export async function getWorkerApplications(workerUserId: string): Promise<DBApp
   return (data as DBApplication[]) || [];
 }
 
-export async function selectApplication(applicationId: string): Promise<DBApplication | null> {
+export async function selectApplication(
+  applicationId: string
+): Promise<{ application: DBApplication | null; isJobFilled: boolean; selectedCount: number; openings: number }> {
   const { data, error } = await supabase
     .from("applications")
     .update({ status: "selected" })
@@ -109,11 +148,36 @@ export async function selectApplication(applicationId: string): Promise<DBApplic
     .select("*, worker:users!worker_id(*), job:jobs!job_id(*, employer:users!employer_id(*))")
     .single();
 
-  if (error) {
+  if (error || !data) {
     console.error("Error selecting application:", error);
-    return null;
+    return { application: null, isJobFilled: false, selectedCount: 0, openings: 1 };
   }
-  return data as DBApplication;
+
+  const app = data as DBApplication;
+  const jobId = app.job_id;
+  const openings = app.job?.openings || 1;
+
+  // Count total selected workers for this job
+  const { count: selectedCount } = await supabase
+    .from("applications")
+    .select("*", { count: "exact", head: true })
+    .eq("job_id", jobId)
+    .eq("status", "selected");
+
+  const totalSelected = selectedCount ?? 1;
+  const isJobFilled = totalSelected >= openings;
+
+  // If openings reached, auto-update job status to 'filled'!
+  if (isJobFilled) {
+    await updateJobStatus(jobId, "filled");
+  }
+
+  return {
+    application: app,
+    isJobFilled,
+    selectedCount: totalSelected,
+    openings,
+  };
 }
 
 export async function rejectApplication(applicationId: string): Promise<DBApplication | null> {
@@ -129,4 +193,18 @@ export async function rejectApplication(applicationId: string): Promise<DBApplic
     return null;
   }
   return data as DBApplication;
+}
+
+export async function getSelectedWorkersForJob(jobId: string): Promise<DBApplication[]> {
+  const { data, error } = await supabase
+    .from("applications")
+    .select("*, worker:users!worker_id(*)")
+    .eq("job_id", jobId)
+    .eq("status", "selected");
+
+  if (error) {
+    console.error("Error fetching selected workers for job:", error);
+    return [];
+  }
+  return (data as DBApplication[]) || [];
 }

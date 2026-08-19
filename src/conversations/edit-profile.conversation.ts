@@ -1,6 +1,7 @@
 import { MyConversation, MyContext } from "../types/context.js";
 import { updateWorkerProfile, getUserByTelegramId } from "../services/user.service.js";
 import { getWorkerMainMenu } from "../keyboards/main-menu.js";
+import { JOB_CATEGORIES, JobCategory } from "../core/gemini.js";
 
 export async function editProfileConversation(
   conversation: MyConversation,
@@ -15,6 +16,7 @@ export async function editProfileConversation(
     return;
   }
 
+  // 1. Full Name
   await ctx.reply(
     `👤 <b>Profilni tahrirlash</b>\n\nIsm va familiyangizni kiriting (hozirgi: <i>${user.full_name}</i>):`,
     {
@@ -34,9 +36,11 @@ export async function editProfileConversation(
     return;
   }
 
-  await ctx.reply("Yashash tumaningizni kiriting (Masalan: <i>Chilonzor, Yunusobod</i>):", {
-    parse_mode: "HTML",
-  });
+  // 2. District
+  await ctx.reply(
+    "Yashash tumaningizni kiriting (Masalan: <i>Chilonzor, Yunusobod, Sergeli...</i>):",
+    { parse_mode: "HTML" }
+  );
   const districtMsg = await conversation.waitFor("message:text");
   const district = districtMsg.message.text.trim();
   if (district === "❌ Bekor qilish") {
@@ -44,30 +48,87 @@ export async function editProfileConversation(
     return;
   }
 
+  // 3. Experience
   await ctx.reply("Ish tajribangiz (necha yil, masalan: <i>2</i>):", {
     parse_mode: "HTML",
   });
   const expMsg = await conversation.waitFor("message:text");
   const expText = expMsg.message.text.trim();
+  if (expText === "❌ Bekor qilish") {
+    await ctx.reply("Tahrirlash bekor qilindi.", { reply_markup: getWorkerMainMenu() });
+    return;
+  }
   const experienceYears = Number.parseInt(expText, 10) || 0;
 
-  await ctx.reply("O‘zingiz haqingizda qisqacha ma’lumot (qanday ishlarni bajara olasiz):", {
+  // 4. Categories Selection
+  const categoriesList = JOB_CATEGORIES.map((cat, i) => `${i + 1}. ${cat}`).join("\n");
+  await ctx.reply(
+    `📂 <b>Qaysi sohalarda ishlamoqchisiz?</b>\n\n` +
+      `Quyidagi sohalardan moslarini raqamlarini vergul bilan yozing (masalan: <i>1, 3</i>) yoki <i>Barchasi</i> deb yozing:\n\n` +
+      `${categoriesList}`,
+    { parse_mode: "HTML" }
+  );
+
+  const catMsg = await conversation.waitFor("message:text");
+  const catInput = catMsg.message.text.trim();
+  if (catInput === "❌ Bekor qilish") {
+    await ctx.reply("Tahrirlash bekor qilindi.", { reply_markup: getWorkerMainMenu() });
+    return;
+  }
+
+  let selectedCategories: string[] = [];
+  if (catInput.toLowerCase().includes("barchas") || catInput.toLowerCase().includes("hamma")) {
+    selectedCategories = [...JOB_CATEGORIES];
+  } else {
+    const indices = catInput
+      .split(/[,;\s]+/)
+      .map((s) => parseInt(s.trim(), 10) - 1)
+      .filter((idx) => idx >= 0 && idx < JOB_CATEGORIES.length);
+
+    selectedCategories = indices.map((idx) => JOB_CATEGORIES[idx]);
+    if (selectedCategories.length === 0) {
+      // Check if wrote category names directly
+      selectedCategories = JOB_CATEGORIES.filter((c) =>
+        catInput.toLowerCase().includes(c.toLowerCase())
+      );
+    }
+  }
+
+  if (selectedCategories.length === 0) {
+    selectedCategories = ["Xizmat"];
+  }
+
+  // 5. About
+  await ctx.reply("O‘zingiz haqingizda qisqacha ma’lumot (qanday ishlarni bajara olasiz, ko‘nikmalaringiz):", {
     parse_mode: "HTML",
   });
   const aboutMsg = await conversation.waitFor("message:text");
   const about = aboutMsg.message.text.trim();
+  if (about === "❌ Bekor qilish") {
+    await ctx.reply("Tahrirlash bekor qilindi.", { reply_markup: getWorkerMainMenu() });
+    return;
+  }
 
   await conversation.external(() =>
     updateWorkerProfile(telegramId, {
       full_name: name,
       district,
       experience_years: experienceYears,
+      worker_categories: selectedCategories,
       about,
     })
   );
 
-  await ctx.reply("✅ <b>Profilingiz muvaffaqiyatli yangilandi!</b>", {
-    parse_mode: "HTML",
-    reply_markup: getWorkerMainMenu(),
-  });
+  await ctx.reply(
+    `✅ <b>Profilingiz muvaffaqiyatli yangilandi!</b>\n\n` +
+      `📌 <b>Ism:</b> ${name}\n` +
+      `📍 <b>Tuman:</b> ${district}\n` +
+      `💼 <b>Tajriba:</b> ${experienceYears} yil\n` +
+      `📂 <b>Tanlangan sohalar:</b> ${selectedCategories.join(", ")}\n` +
+      `📝 <b>Ma’lumot:</b> ${about}`,
+    {
+      parse_mode: "HTML",
+      reply_markup: getWorkerMainMenu(),
+    }
+  );
 }
