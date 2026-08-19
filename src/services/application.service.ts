@@ -29,9 +29,21 @@ export async function applyForJob(
     .maybeSingle();
 
   if (existing) {
+    if (existing.status === "rejected") {
+      return {
+        success: false,
+        message: "Ushbu e’longa arizangiz avval rad etilgan. Iltimos, boshqa ishlarga ariza yuboring.",
+      };
+    }
+    if (existing.status === "selected") {
+      return {
+        success: false,
+        message: "Siz ushbu ishga allaqachon qabul qilingansiz!",
+      };
+    }
     return {
       success: false,
-      message: "Siz ushbu e’longa allaqachon ariza topshirgansiz.",
+      message: "Siz ushbu e’longa allaqachon ariza topshirgansiz (ko‘rib chiqilmoqda).",
     };
   }
 
@@ -104,15 +116,17 @@ export async function selectApplication(applicationId: string): Promise<DBApplic
   return data as DBApplication;
 }
 
-export async function rejectApplication(applicationId: string): Promise<boolean> {
-  const { error } = await supabase
+export async function rejectApplication(applicationId: string): Promise<DBApplication | null> {
+  const { data, error } = await supabase
     .from("applications")
     .update({ status: "rejected" })
-    .eq("id", applicationId);
+    .eq("id", applicationId)
+    .select("*, worker:users!worker_id(*), job:jobs!job_id(*)")
+    .single();
 
   if (error) {
     console.error("Error rejecting application:", error);
-    return false;
+    return null;
   }
-  return true;
+  return data as DBApplication;
 }

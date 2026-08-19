@@ -11,10 +11,11 @@ import {
   selectApplication,
   rejectApplication,
 } from "../services/application.service.js";
+import { bot } from "../core/bots.js";
 
-export function registerEmployerHandlers(bot: Bot<MyContext>) {
+export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
   // Create Job
-  bot.hears("➕ Yangi e’lon berish", async (ctx) => {
+  mainBot.hears("➕ Yangi e’lon berish", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
@@ -28,7 +29,7 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
   });
 
   // My Jobs
-  bot.hears("📋 Mening e’lonlarim", async (ctx) => {
+  mainBot.hears("📋 Mening e’lonlarim", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
@@ -90,7 +91,7 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
   });
 
   // View Applicants
-  bot.callbackQuery(/^emp:apps:(.+)$/, async (ctx) => {
+  mainBot.callbackQuery(/^emp:apps:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const jobId = ctx.match[1];
     const applications = await getJobApplications(jobId);
@@ -143,7 +144,7 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
   });
 
   // Select Candidate
-  bot.callbackQuery(/^emp:select:(.+)$/, async (ctx) => {
+  mainBot.callbackQuery(/^emp:select:(.+)$/, async (ctx) => {
     const appId = ctx.match[1];
     const app = await selectApplication(appId);
 
@@ -176,7 +177,7 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
     if (worker?.telegram_id) {
       try {
         const employer = (job as any)?.employer;
-        await bot.api.sendMessage(
+        await mainBot.api.sendMessage(
           worker.telegram_id,
           `🎉 <b>Xushxabar! Ish beruvchi sizni ishga tanladi!</b>\n\n` +
             `📌 <b>E’lon:</b> ${job?.title}\n` +
@@ -192,16 +193,53 @@ export function registerEmployerHandlers(bot: Bot<MyContext>) {
     }
   });
 
-  // Reject Candidate
-  bot.callbackQuery(/^emp:reject:(.+)$/, async (ctx) => {
+  // Reject Candidate: Rejection handling with polite worker notification & redirection
+  mainBot.callbackQuery(/^emp:reject:(.+)$/, async (ctx) => {
     const appId = ctx.match[1];
-    await rejectApplication(appId);
+    const app = await rejectApplication(appId);
+
+    if (!app) {
+      await ctx.answerCallbackQuery({
+        text: "Nomzodni rad etishda xatolik yuz berdi",
+        show_alert: true,
+      });
+      return;
+    }
+
     await ctx.answerCallbackQuery({ text: "Nomzod rad etildi" });
-    await ctx.editMessageText("❌ Ushbu nomzod rad etildi.");
+    await ctx.editMessageText("❌ Ushbu nomzod arizasi rad etildi.");
+
+    const worker = app.worker;
+    const job = app.job;
+
+    // Send polite and encouraging notification to worker with direct button to view other jobs!
+    if (worker?.telegram_id) {
+      try {
+        const rejectText = [
+          `ℹ️ <b>Ariza holati:</b>`,
+          "",
+          `Hurmatli <b>${worker.full_name}</b>, sizning <b>“${job?.title || "E’lon"}”</b> bo‘yicha yuborgan arizangiz ish beruvchi tomonidan ko‘rib chiqildi va rad etildi.`,
+          "",
+          `Xafa bo‘lmang, JobTop platformasida siz uchun boshqa qulay va yaxshi ishlar juda ko‘p! 👇`,
+        ].join("\n");
+
+        const exploreKeyboard = new InlineKeyboard().text(
+          "🔍 Boshqa ishlarni ko‘rish",
+          "worker:feed:all:0"
+        );
+
+        await mainBot.api.sendMessage(worker.telegram_id, rejectText, {
+          parse_mode: "HTML",
+          reply_markup: exploreKeyboard,
+        });
+      } catch (e) {
+        console.error("Failed to notify worker about rejection:", e);
+      }
+    }
   });
 
   // Close / Stop Job
-  bot.callbackQuery(/^emp:close:(.+)$/, async (ctx) => {
+  mainBot.callbackQuery(/^emp:close:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const jobId = ctx.match[1];
     await updateJobStatus(jobId, "cancelled");
