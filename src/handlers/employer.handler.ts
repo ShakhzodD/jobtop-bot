@@ -1,4 +1,4 @@
-import { JOB_BOOST_PLANS, boostJob, PAYMENT_CARD } from "../services/payment.service.js";
+import { JOB_BOOST_PLANS, boostJob, PAYMENT_CARD, getClickPaymentUrl, getPaymePaymentUrl } from "../services/payment.service.js";
 import { Bot, InlineKeyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import { getUserByTelegramId } from "../services/user.service.js";
@@ -76,9 +76,11 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
     ].join("\n");
 
     const keyboard = new InlineKeyboard()
-      .text("📸 To‘lov chekini yuborish", `emp:upload_receipt:${jobId}:${planId}`)
+      .url("🔵 Click orqali to‘lash (Avtomat)", getClickPaymentUrl(plan.price))
       .row()
-      .text("⚡️ Test to‘lov (Darhol faollashtirish)", `emp:exec_boost:${jobId}:${planId}:test`)
+      .url("🟢 Payme orqali to‘lash", getPaymePaymentUrl())
+      .row()
+      .text("📸 To‘lov chekini yuborish", `emp:upload_receipt:${jobId}:${planId}`)
       .row()
       .text("🔙 Ortga", `emp:boost_menu:${jobId}`);
 

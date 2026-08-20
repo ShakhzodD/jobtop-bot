@@ -1,4 +1,4 @@
-import { isUserPro, PRO_PLANS, activateProSubscription, PAYMENT_CARD } from "../services/payment.service.js";
+import { isUserPro, PRO_PLANS, activateProSubscription, PAYMENT_CARD, getClickPaymentUrl, getPaymePaymentUrl } from "../services/payment.service.js";
 
 export function extractContactInfo(text: string): { phone?: string; telegram?: string; rawDigits?: string } {
   const phoneRegex = /(?:\+?998[\s-]*)?(?:90|91|93|94|95|97|98|99|88|33|77|20)[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}|\b\d{2}[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}\b/;
@@ -145,9 +145,11 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     ].join("\n");
 
     const keyboard = new InlineKeyboard()
-      .text("📸 To‘lov chekini yuborish", `worker:upload_receipt:${planId}`)
+      .url("🔵 Click orqali to‘lash (Avtomat)", getClickPaymentUrl(plan.price))
       .row()
-      .text("⚡️ Test to‘lov (Darhol faollashtirish)", `worker:pay_pro:${planId}:test`)
+      .url("🟢 Payme orqali to‘lash", getPaymePaymentUrl())
+      .row()
+      .text("📸 To‘lov chekini yuborish", `worker:upload_receipt:${planId}`)
       .row()
       .text("🔙 Tariflarga qaytish", "worker:buy_pro");
 

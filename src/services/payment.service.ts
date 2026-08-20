@@ -11,6 +11,14 @@ export const PAYMENT_CARD = {
   bank: "Humo / Milliy Bank",
 };
 
+export function getClickPaymentUrl(amount: number): string {
+  return `https://my.click.uz/pay?card=${PAYMENT_CARD.cleanNumber}&amount=${amount}`;
+}
+
+export function getPaymePaymentUrl(): string {
+  return `https://payme.uz/fallback/cards/${PAYMENT_CARD.cleanNumber}`;
+}
+
 export interface PricingPlan {
   id: string;
   name: string;
