@@ -292,7 +292,7 @@ export async function runAllChannelScrapers(): Promise<void> {
 
 let scraperInterval: NodeJS.Timeout | null = null;
 
-export function startChannelScraperCron(intervalMinutes = 15): void {
+export function startChannelScraperCron(intervalMinutes = 3): void {
   if (scraperInterval) return;
 
   console.log(`⏰ [Channel Scraper] Har ${intervalMinutes} daqiqada kanallar avtomatik tekshiriladi.`);

@@ -78,7 +78,7 @@ async function startBots() {
     }
 
     console.log("🚀 JobTop Asosiy Bot va Moderatsiya Boti ishga tushirilmoqda...");
-    startChannelScraperCron(15);
+    startChannelScraperCron(3);
     const runner1 = run(bot);
     const runner2 = modBot !== bot ? run(modBot) : null;
 
