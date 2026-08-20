@@ -20,7 +20,7 @@ function renderJobCard(job: DBJob, index: number, total: number) {
 
   const lines = [
     `📋 <b>${job.title}</b> (${index + 1}/${total})`,
-    isExternal ? `🌐 <i>(Tashqi e’lon — ${job.source_name || "Agregator"})` : `✨ <i>(JobTop orqali to‘g‘ridan-to‘g‘ri)`,
+    isExternal ? `🌐 <i>(Tashqi e’lon — ${job.source_name || "Agregator"})</i>` : `✨ <i>(JobTop orqali to‘g‘ridan-to‘g‘ri)</i>`,
     "",
     `📂 <b>Kategoriya:</b> ${job.category}`,
     `📍 <b>Tuman:</b> ${job.district}`,
