@@ -462,7 +462,8 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       (msg as any).forward_from
     );
 
-    if (!isForwarded || !text) {
+    // Accept forwarded messages OR any raw text with at least 20 chars (excluding menu buttons)
+    if (!text || text.startsWith("/") || text === "📋 Moderatsiyadagi e’lonlar" || text === "📊 Statistika" || text === "👥 Foydalanuvchilar") {
       return next();
     }
 
