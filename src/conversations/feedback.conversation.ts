@@ -47,12 +47,13 @@ export async function feedbackConversation(
   const userName = user?.full_name || ctx.from?.first_name || "Foydalanuvchi";
   const userPhone = user?.phone ? `<code>${user.phone}</code>` : "Kiritilmagan";
   const userRoleStr = activeRole === "employer" ? "💼 Ish beruvchi" : "👷 Ishchi";
-  const userTg = ctx.from?.username ? `@${ctx.from.username}` : "Mavjud emas";
+  const hasUsername = Boolean(ctx.from?.username);
+  const userMention = `<a href="tg://user?id=${telegramId}">${userName}</a>`;
 
   const adminAlertText = [
     "📬 <b>Yangi foydalanuvchi murojaati / Taklif:</b>",
     "",
-    `👤 <b>Foydalanuvchi:</b> ${userName} (${userTg})`,
+    `👤 <b>Foydalanuvchi:</b> ${userMention} (${hasUsername ? `@${ctx.from!.username}` : "Username yo‘q"})`,
     `📱 <b>Telefon:</b> ${userPhone}`,
     `🆔 <b>Telegram ID:</b> <code>${telegramId}</code>`,
     `🔄 <b>Roli:</b> ${userRoleStr}`,
@@ -60,31 +61,31 @@ export async function feedbackConversation(
     `📝 <b>Xabar matni:</b>\n${text || "(Rasm yoki fayl yuborildi)"}`,
   ].join("\n");
 
-  const replyKb = new InlineKeyboard().url(
-    "💬 Telegramdan yozish",
-    ctx.from?.username
-      ? `https://t.me/${ctx.from.username}`
-      : `tg://user?id=${telegramId}`
-  );
-
-  for (const adminId of adminIds) {
-    try {
-      await modBot.api.sendMessage(adminId, adminAlertText, {
-        parse_mode: "HTML",
-        reply_markup: replyKb,
-      });
-
-      // If photo was sent, forward it too
-      if (msg.photo && msg.photo.length > 0) {
-        const photoId = msg.photo[msg.photo.length - 1].file_id;
-        await modBot.api.sendPhoto(adminId, photoId, {
-          caption: `📸 Murojaatga biriktirilgan rasm (Kimdan: ${userName})`,
-        });
-      }
-    } catch (e) {
-      console.error(`Failed to send feedback to admin ${adminId}:`, e);
-    }
+  const replyKb = new InlineKeyboard();
+  if (hasUsername) {
+    replyKb.url("💬 Telegramdan yozish", `https://t.me/${ctx.from!.username}`);
   }
+
+  await conversation.external(async () => {
+    for (const adminId of adminIds) {
+      try {
+        await modBot.api.sendMessage(adminId, adminAlertText, {
+          parse_mode: "HTML",
+          reply_markup: replyKb.inline_keyboard.length > 0 ? replyKb : undefined,
+        });
+
+        // If photo was sent, forward it too
+        if (msg.photo && msg.photo.length > 0) {
+          const photoId = msg.photo[msg.photo.length - 1].file_id;
+          await modBot.api.sendPhoto(adminId, photoId, {
+            caption: `📸 Murojaatga biriktirilgan rasm (Kimdan: ${userName})`,
+          });
+        }
+      } catch (e) {
+        console.error(`Failed to send feedback to admin ${adminId}:`, e);
+      }
+    }
+  });
 
   await ctx.reply(
     "✅ <b>Murojaatingiz qabul qilindi!</b>\n\nFikr va taklifingiz uchun katta rahmat. Adminlarimiz uni albatta ko‘rib chiqishadi.",
