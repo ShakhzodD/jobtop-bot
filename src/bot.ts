@@ -1,3 +1,4 @@
+import { feedbackConversation } from "./conversations/feedback.conversation.js";
 import { startChannelScraperCron } from "./services/channel-scraper.service.js";
 import http from "node:http";
 
@@ -47,6 +48,7 @@ if (modBot !== bot) {
 bot.use(conversations());
 bot.use(createConversation(createJobConversation));
 bot.use(createConversation(editProfileConversation));
+bot.use(createConversation(feedbackConversation));
 
 // Register User Handlers (on Main Bot)
 registerStartHandlers(bot);

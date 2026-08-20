@@ -10,6 +10,11 @@ import { roleSelectionKeyboard, contactRequestKeyboard } from "../keyboards/auth
 import { getWorkerMainMenu, getEmployerMainMenu } from "../keyboards/main-menu.js";
 
 export function registerStartHandlers(bot: Bot<MyContext>) {
+  // Support & Feedback
+  bot.hears("✍️ Murojaat va takliflar", async (ctx) => {
+    await ctx.conversation.enter("feedbackConversation");
+  });
+
   bot.command("start", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
