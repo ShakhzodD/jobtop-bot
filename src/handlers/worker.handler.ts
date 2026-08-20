@@ -16,8 +16,11 @@ import { JOB_CATEGORIES } from "../core/gemini.js";
 import { supabase } from "../core/supabase.js";
 
 function renderJobCard(job: DBJob, index: number, total: number) {
+  const isExternal = Boolean(job.source_name || job.source_url || !job.employer_id);
+
   const lines = [
     `📋 <b>${job.title}</b> (${index + 1}/${total})`,
+    isExternal ? `🌐 <i>(Tashqi e’lon — ${job.source_name || "Agregator"})` : `✨ <i>(JobTop orqali to‘g‘ridan-to‘g‘ri)`,
     "",
     `📂 <b>Kategoriya:</b> ${job.category}`,
     `📍 <b>Tuman:</b> ${job.district}`,
@@ -32,13 +35,48 @@ function renderJobCard(job: DBJob, index: number, total: number) {
     })}`,
     "",
     `📝 <b>Tavsif:</b>\n${job.description}`,
-    job.source_name ? `\n🔗 <i>Manba: ${job.source_name}</i>` : "",
   ];
 
   return lines.filter(Boolean).join("\n");
 }
 
 export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
+  // Handle external job contact info
+  mainBot.callbackQuery(/^worker:contact_ext:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const jobId = ctx.match[1];
+    const job = await getJobById(jobId);
+    if (!job) {
+      await ctx.reply("E’lon topilmadi.");
+      return;
+    }
+
+    const contactMsg = [
+      "📞 <b>Ish beruvchi bilan bog‘lanish:</b>",
+      "",
+      `📌 <b>E’lon:</b> ${job.title}`,
+      `💰 <b>Ish haqi:</b> ${job.pay_amount.toLocaleString()} so‘m`,
+      `📍 <b>Manzil:</b> ${job.district}, ${job.address}`,
+      job.source_name ? `🌐 <b>Manba:</b> ${job.source_name}` : "",
+      "",
+      `📝 <b>Tavsif va aloqa ma’lumoti:</b>\n${job.description}`,
+      "",
+      "💡 <i>Qo‘ng‘iroq qilib JobTop orqali ko‘rganingizni aytsangiz bo‘ladi!</i>",
+    ]
+      .filter(Boolean)
+      .join("\n");
+
+    const kb = new InlineKeyboard();
+    if (job.source_url && job.source_url.startsWith("http")) {
+      kb.url("🌐 Asl sahifani ochish", job.source_url);
+    }
+
+    await ctx.reply(contactMsg, {
+      parse_mode: "HTML",
+      reply_markup: kb.inline_keyboard.length > 0 ? kb : undefined,
+    });
+  });
+
   // Feed / Ishlarni ko'rish
   mainBot.hears("🔍 Ishlarni ko‘rish", async (ctx) => {
     await ctx.replyWithChatAction("typing").catch(() => {});
@@ -84,10 +122,14 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     const job = jobs[0];
     const text = renderJobCard(job, offset, total);
 
+    const isExternal = Boolean(job.source_name || job.source_url || !job.employer_id);
     const keyboard = new InlineKeyboard();
 
-    if (job.source_url) {
-      keyboard.url("🌐 Asl manba havolasi", job.source_url).row();
+    if (isExternal) {
+      if (job.source_url && job.source_url.startsWith("http")) {
+        keyboard.url("🔗 Asl manbaga o‘tish", job.source_url).row();
+      }
+      keyboard.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
     } else {
       keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:${categoryParam}:${offset}`).row();
     }
