@@ -1,4 +1,4 @@
-import { JOB_BOOST_PLANS, boostJob } from "../services/payment.service.js";
+import { JOB_BOOST_PLANS, boostJob, PAYMENT_CARD } from "../services/payment.service.js";
 import { Bot, InlineKeyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import { getUserByTelegramId } from "../services/user.service.js";
@@ -67,14 +67,18 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
       `💰 To‘lov summasi: <b>${plan.price.toLocaleString()} so‘m</b>`,
       `📝 ${plan.description}`,
       "",
-      "To‘lov usulini tanlang 👇",
+      "💳 <b>To‘lov uchun karta ma’lumotlari:</b>",
+      `💳 Karta raqami: <code>${PAYMENT_CARD.number}</code> <i>(bosilsa nusxalanadi)</i>`,
+      `👤 Karta egasi: <b>${PAYMENT_CARD.holder}</b>`,
+      `🏦 Bank: ${PAYMENT_CARD.bank}`,
+      "",
+      "To‘lovni amalga oshirgach, pastdagi <b>“📸 Chekni yuborish”</b> tugmasini bosing 👇",
     ].join("\n");
 
     const keyboard = new InlineKeyboard()
-      .text("⚡️ Test to‘lov (Darhol faollashtirish)", `emp:exec_boost:${jobId}:${planId}:test`)
+      .text("📸 To‘lov chekini yuborish", `emp:upload_receipt:${jobId}:${planId}`)
       .row()
-      .url("🔵 Click orqali to‘lash", "https://my.click.uz/")
-      .url("🟢 Payme orqali to‘lash", "https://payme.uz/")
+      .text("⚡️ Test to‘lov (Darhol faollashtirish)", `emp:exec_boost:${jobId}:${planId}:test`)
       .row()
       .text("🔙 Ortga", `emp:boost_menu:${jobId}`);
 

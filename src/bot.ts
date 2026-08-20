@@ -1,3 +1,4 @@
+import { paymentReceiptConversation } from "./conversations/payment-receipt.conversation.js";
 import { startDailyReportCron } from "./services/report.service.js";
 import { feedbackConversation } from "./conversations/feedback.conversation.js";
 import { startChannelScraperCron } from "./services/channel-scraper.service.js";
@@ -50,6 +51,7 @@ bot.use(conversations());
 bot.use(createConversation(createJobConversation));
 bot.use(createConversation(editProfileConversation));
 bot.use(createConversation(feedbackConversation));
+bot.use(createConversation(paymentReceiptConversation));
 
 // Register User Handlers (on Main Bot)
 registerStartHandlers(bot);

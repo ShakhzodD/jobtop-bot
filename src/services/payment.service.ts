@@ -1,8 +1,15 @@
 import { supabase } from "../core/supabase.js";
 import { DBUser, getUserByTelegramId } from "./user.service.js";
-import { getJobById, updateJobStatus } from "./job.service.js";
+import { getJobById } from "./job.service.js";
 import { broadcastJobToMatchingWorkers } from "./moderation.service.js";
 import { bot } from "../core/bots.js";
+
+export const PAYMENT_CARD = {
+  number: "9860 3501 4932 8659",
+  cleanNumber: "9860350149328659",
+  holder: "SHAHZOD URINBOYEV",
+  bank: "Humo / Milliy Bank",
+};
 
 export interface PricingPlan {
   id: string;

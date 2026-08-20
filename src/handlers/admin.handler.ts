@@ -1,3 +1,4 @@
+import { activateProSubscription, boostJob, PRO_PLANS, JOB_BOOST_PLANS } from "../services/payment.service.js";
 import { Bot, InlineKeyboard, Keyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import { config } from "../config/env.js";
@@ -33,6 +34,70 @@ function renderModerationCard(job: DBJob) {
 }
 
 export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyContext>) {
+  // Admin Confirm Payment & Activate Service
+  modBot.callbackQuery(/^admin:pay_app:(pro|boost):(.+):(.+):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const paymentType = ctx.match[1];
+    const targetId = ctx.match[2];
+    const planId = ctx.match[3];
+    const userTelegramId = parseInt(ctx.match[4], 10);
+
+    if (paymentType === "pro") {
+      const plan = PRO_PLANS[planId];
+      const result = await activateProSubscription(userTelegramId, planId);
+
+      await ctx.editMessageCaption({
+        caption: (ctx.msg?.caption || "") + "\n\n✅ <b>TO‘LOV TASDIQLANDI VA PRO FAOLLASHTIRILDI!</b>",
+        parse_mode: "HTML",
+      }).catch(() => {});
+
+      // Notify User on Main Bot
+      try {
+        await mainBot.api.sendMessage(
+          userTelegramId,
+          `🎉 <b>To‘lovingiz tasdiqlandi!</b>\n\nSizning <b>${plan?.name || "PRO"}</b> obunangiz muvaffaqiyatli faollashtirildi!\n\nEndi barcha arizalaringiz <b>⭐️ PRO Ishonchli Usta</b> nishoni bilan eng yuqorida chiqadi. Omad!`,
+          { parse_mode: "HTML" }
+        );
+      } catch (e) {}
+    } else if (paymentType === "boost") {
+      const plan = JOB_BOOST_PLANS[planId];
+      const result = await boostJob(targetId, planId);
+
+      await ctx.editMessageCaption({
+        caption: (ctx.msg?.caption || "") + "\n\n✅ <b>TO‘LOV TASDIQLANDI VA E’LON TOP QILINDI!</b>",
+        parse_mode: "HTML",
+      }).catch(() => {});
+
+      // Notify Employer on Main Bot
+      try {
+        await mainBot.api.sendMessage(
+          userTelegramId,
+          `🎉 <b>To‘lovingiz tasdiqlandi!</b>\n\nSizning e’loningiz uchun <b>${plan?.name || "Kuchaytirish"}</b> xizmati faollashtirildi va TOP ga chiqarildi!`,
+          { parse_mode: "HTML" }
+        );
+      } catch (e) {}
+    }
+  });
+
+  // Admin Reject Payment
+  modBot.callbackQuery(/^admin:pay_rej:(\d+):(pro|boost)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const userTelegramId = parseInt(ctx.match[1], 10);
+
+    await ctx.editMessageCaption({
+      caption: (ctx.msg?.caption || "") + "\n\n❌ <b>TO‘LOV RAD ETILDI!</b>",
+      parse_mode: "HTML",
+    }).catch(() => {});
+
+    try {
+      await mainBot.api.sendMessage(
+        userTelegramId,
+        "❌ <b>Kechirasiz, to‘lov chekingiz tasdiqlanmadi.</b>\n\nIltimos, to‘lov ma’lumotlarini tekshirib qayta urinib ko‘ring yoki yordam uchun <b>✍️ Murojaat va takliflar</b> bo‘limiga yozing.",
+        { parse_mode: "HTML" }
+      );
+    } catch (e) {}
+  });
+
   // 1. Strict Security Guard: Only ADMIN_TELEGRAM_IDS can interact with Moderation Bot
   modBot.use(async (ctx, next) => {
     const telegramId = ctx.from?.id;

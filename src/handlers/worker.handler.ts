@@ -1,4 +1,4 @@
-import { isUserPro, PRO_PLANS, activateProSubscription } from "../services/payment.service.js";
+import { isUserPro, PRO_PLANS, activateProSubscription, PAYMENT_CARD } from "../services/payment.service.js";
 
 export function extractContactInfo(text: string): { phone?: string; telegram?: string; rawDigits?: string } {
   const phoneRegex = /(?:\+?998[\s-]*)?(?:90|91|93|94|95|97|98|99|88|33|77|20)[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}|\b\d{2}[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}\b/;
@@ -134,16 +134,20 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       `⭐️ <b>${plan.name}</b>`,
       "",
       `💰 To‘lov summasi: <b>${plan.price.toLocaleString()} so‘m</b>`,
-      `📝 Tavsif: ${plan.description}`,
+      `📝 ${plan.description}`,
       "",
-      "To‘lov turini tanlang 👇",
+      "💳 <b>To‘lov uchun karta ma’lumotlari:</b>",
+      `💳 Karta raqami: <code>${PAYMENT_CARD.number}</code> <i>(bosilsa nusxalanadi)</i>`,
+      `👤 Karta egasi: <b>${PAYMENT_CARD.holder}</b>`,
+      `🏦 Bank: ${PAYMENT_CARD.bank}`,
+      "",
+      "To‘lovni amalga oshirgach, pastdagi <b>“📸 Chekni yuborish”</b> tugmasini bosing 👇",
     ].join("\n");
 
     const keyboard = new InlineKeyboard()
-      .text("⚡️ Test to‘lov (Darhol faollashtirish)", `worker:pay_pro:${planId}:test`)
+      .text("📸 To‘lov chekini yuborish", `worker:upload_receipt:${planId}`)
       .row()
-      .url("🔵 Click orqali to‘lash", `https://my.click.uz/`)
-      .url("🟢 Payme orqali to‘lash", `https://payme.uz/`)
+      .text("⚡️ Test to‘lov (Darhol faollashtirish)", `worker:pay_pro:${planId}:test`)
       .row()
       .text("🔙 Tariflarga qaytish", "worker:buy_pro");
 
