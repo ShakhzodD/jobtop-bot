@@ -1,3 +1,40 @@
+
+function renderAdminUserCard(user: any, index: number, total: number) {
+  const isWorker = user.active_role === "worker";
+  const roleLabel = isWorker ? "👷 Ishchi" : "💼 Ish beruvchi";
+  const tgLink = user.telegram_username
+    ? `@${user.telegram_username}`
+    : `<a href="tg://user?id=${user.telegram_id}">${user.full_name}</a>`;
+
+  const regDate = new Date(user.created_at).toLocaleDateString("uz-UZ", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const lines = [
+    `👤 <b>${user.full_name}</b> (${index + 1}/${total})`,
+    `🔄 <b>Roli:</b> ${roleLabel}`,
+    "",
+    `📱 <b>Telefon:</b> <code>${user.phone || "Kiritilmagan"}</code>`,
+    `💬 <b>Telegram:</b> ${tgLink}`,
+    `🆔 <b>Telegram ID:</b> <code>${user.telegram_id}</code>`,
+    `📍 <b>Tuman:</b> ${user.district || "Kiritilmagan"}`,
+    user.experience_years ? `💼 <b>Tajriba:</b> ${user.experience_years} yil` : "",
+    user.worker_categories && user.worker_categories.length > 0
+      ? `📂 <b>Sohalar:</b> ${user.worker_categories.join(", ")}`
+      : "",
+    user.about ? `📝 <b>Haqida:</b> <i>${user.about}</i>` : "",
+    "",
+    `📅 <b>Ro‘yxatdan o‘tgan:</b> ${regDate}`,
+  ].filter(Boolean);
+
+  return lines.join("\n");
+}
+
 import { activateProSubscription, boostJob, PRO_PLANS, JOB_BOOST_PLANS } from "../services/payment.service.js";
 import { Bot, InlineKeyboard, Keyboard } from "grammy";
 import { MyContext } from "../types/context.js";
@@ -12,6 +49,8 @@ import { supabase } from "../core/supabase.js";
 
 export const moderationMenuKeyboard = new Keyboard()
   .text("📋 Moderatsiyadagi e’lonlar")
+  .row()
+  .text("👥 Foydalanuvchilar")
   .text("📊 Statistika")
   .resized();
 
@@ -34,6 +73,109 @@ function renderModerationCard(job: DBJob) {
 }
 
 export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyContext>) {
+  // 6. "👥 Foydalanuvchilar" Button
+  modBot.hears("👥 Foydalanuvchilar", async (ctx) => {
+    await ctx.replyWithChatAction("typing").catch(() => {});
+    const filter = "all";
+    const offset = 0;
+
+    const { data: users, count, error } = await supabase
+      .from("users")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(offset, offset);
+
+    if (error || !users || users.length === 0 || count === 0) {
+      await ctx.reply("Hozircha foydalanuvchilar topilmadi.", {
+        reply_markup: moderationMenuKeyboard,
+      });
+      return;
+    }
+
+    const user = users[0];
+    const total = count ?? 0;
+    const text = renderAdminUserCard(user, offset, total);
+
+    const keyboard = new InlineKeyboard();
+    if (user.telegram_username) {
+      keyboard.url("💬 Telegramdan yozish", `https://t.me/${user.telegram_username}`).row();
+    }
+
+    // Pagination
+    if (offset > 0) {
+      keyboard.text("◀️ Oldingi", `admin:users:${filter}:${offset - 1}`);
+    }
+    keyboard.text(`${offset + 1} / ${total}`, "admin:noop");
+    if (offset + 1 < total) {
+      keyboard.text("Keyingi ▶️", `admin:users:${filter}:${offset + 1}`);
+    }
+
+    keyboard.row();
+    keyboard.text("🔍 Hammasi", "admin:users:all:0")
+      .text("👷 Ishchilar", "admin:users:worker:0")
+      .text("💼 Ish beruvchilar", "admin:users:employer:0");
+
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  // Users Pagination & Filter Callback
+  modBot.callbackQuery(/^admin:users:(all|worker|employer):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const filter = ctx.match[1];
+    const offset = parseInt(ctx.match[2], 10);
+
+    let query = supabase
+      .from("users")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false });
+
+    if (filter !== "all") {
+      query = query.eq("active_role", filter);
+    }
+
+    const { data: users, count, error } = await query.range(offset, offset);
+
+    if (error || !users || users.length === 0 || !count) {
+      await ctx.editMessageText("Ushbu filtr bo‘yicha foydalanuvchilar topilmadi.");
+      return;
+    }
+
+    const user = users[0];
+    const total = count ?? 0;
+    const text = renderAdminUserCard(user, offset, total);
+
+    const keyboard = new InlineKeyboard();
+    if (user.telegram_username) {
+      keyboard.url("💬 Telegramdan yozish", `https://t.me/${user.telegram_username}`).row();
+    }
+
+    // Pagination
+    if (offset > 0) {
+      keyboard.text("◀️ Oldingi", `admin:users:${filter}:${offset - 1}`);
+    }
+    keyboard.text(`${offset + 1} / ${total}`, "admin:noop");
+    if (offset + 1 < total) {
+      keyboard.text("Keyingi ▶️", `admin:users:${filter}:${offset + 1}`);
+    }
+
+    keyboard.row();
+    keyboard.text(filter === "all" ? "🔘 Hammasi" : "Hammasi", "admin:users:all:0")
+      .text(filter === "worker" ? "🔘 Ishchilar" : "👷 Ishchilar", "admin:users:worker:0")
+      .text(filter === "employer" ? "🔘 Ish beruvchilar" : "💼 Ish beruvchilar", "admin:users:employer:0");
+
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  modBot.callbackQuery("admin:noop", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+  });
+
   // Admin Confirm Payment & Activate Service
   modBot.callbackQuery(/^admin:pay_app:(pro|boost):(.+):(.+):(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
