@@ -1,3 +1,32 @@
+
+export function extractContactInfo(text: string): { phone?: string; telegram?: string; rawDigits?: string } {
+  const phoneRegex = /(?:\+?998[\s-]*)?(?:90|91|93|94|95|97|98|99|88|33|77|20)[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}|\b\d{2}[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}\b/;
+  const phoneMatch = text.match(phoneRegex);
+
+  const tgRegex = /@([a-zA-Z0-9_]{4,})/;
+  const tgMatch = text.match(tgRegex);
+
+  let formattedPhone: string | undefined = undefined;
+  let rawDigits: string | undefined = undefined;
+
+  if (phoneMatch) {
+    const digits = phoneMatch[0].replace(/\D/g, "");
+    if (digits.length === 9) {
+      rawDigits = "998" + digits;
+      formattedPhone = `+998 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
+    } else if (digits.length === 12 && digits.startsWith("998")) {
+      rawDigits = digits;
+      formattedPhone = `+998 ${digits.slice(3, 5)} ${digits.slice(5, 8)} ${digits.slice(8, 10)} ${digits.slice(10, 12)}`;
+    }
+  }
+
+  return {
+    phone: formattedPhone,
+    telegram: tgMatch ? tgMatch[0] : undefined,
+    rawDigits,
+  };
+}
+
 import { Bot, InlineKeyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import {
@@ -17,6 +46,18 @@ import { supabase } from "../core/supabase.js";
 
 function renderJobCard(job: DBJob, index: number, total: number) {
   const isExternal = Boolean(job.source_name || job.source_url || !job.employer_id);
+  const contacts = extractContactInfo(job.description);
+
+  let contactLine = "";
+  if (isExternal) {
+    if (contacts.phone && contacts.telegram) {
+      contactLine = `📞 <b>Aloqa:</b> <code>${contacts.phone}</code> (${contacts.telegram})`;
+    } else if (contacts.phone) {
+      contactLine = `📞 <b>Aloqa / Tel:</b> <code>${contacts.phone}</code>`;
+    } else if (contacts.telegram) {
+      contactLine = `💬 <b>Aloqa (Telegram):</b> ${contacts.telegram}`;
+    }
+  }
 
   const lines = [
     `📋 <b>${job.title}</b> (${index + 1}/${total})`,
@@ -27,6 +68,7 @@ function renderJobCard(job: DBJob, index: number, total: number) {
     `🏢 <b>Manzil:</b> ${job.address}`,
     `💰 <b>Ish haqi:</b> ${job.pay_amount.toLocaleString()} so‘m`,
     `👥 <b>Bo‘sh o‘rinlar:</b> ${job.openings} ta`,
+    contactLine,
     `🕒 <b>Boshlanish vaqti:</b> ${new Date(job.starts_at).toLocaleString("uz-UZ", {
       month: "short",
       day: "numeric",
@@ -126,6 +168,10 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     const keyboard = new InlineKeyboard();
 
     if (isExternal) {
+      const contacts = extractContactInfo(job.description);
+      if (contacts.telegram) {
+        keyboard.url("💬 Telegramdan yozish", "https://t.me/" + contacts.telegram.replace("@", "")).row();
+      }
       if (job.source_url && job.source_url.startsWith("http")) {
         keyboard.url("🔗 Asl manbaga o‘tish", job.source_url).row();
       }
