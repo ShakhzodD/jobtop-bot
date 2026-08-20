@@ -7,6 +7,7 @@ import { modBot } from "../core/bots.js";
 import { config } from "../config/env.js";
 
 const DEFAULT_CHANNELS = [
+  "Kunlik_ishlar_kunbayToshkentda",
   "kunlik_ishlar_toshkentuz",
   "kunlikishlaruz24",
   "kunlik_ish_uz",
