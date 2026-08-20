@@ -1,3 +1,4 @@
+import { JOB_BOOST_PLANS, boostJob } from "../services/payment.service.js";
 import { Bot, InlineKeyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import { getUserByTelegramId } from "../services/user.service.js";
@@ -15,6 +16,92 @@ import {
 import { createReview, getUserRating } from "../services/review.service.js";
 
 export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
+  // Employer Job Boost Menu
+  mainBot.callbackQuery(/^emp:boost_menu:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const jobId = ctx.match[1];
+    const job = await getJobById(jobId);
+    if (!job) return;
+
+    const text = [
+      `🚀 <b>"${job.title}" e’lonini kuchaytirish</b>`,
+      "",
+      "Ishchilarni bir necha daqiqada topish uchun xizmat turini tanlang:",
+      "",
+      `🔥 <b>1. TOP E’lon (24 soat) — ${JOB_BOOST_PLANS.boost_top.price.toLocaleString()} so‘m</b>`,
+      "• E’lon 24 soat davomida lentaning eng yuqori qismida olovli nishon bilan turadi.",
+      "",
+      `⚡️ <b>2. Tezkor Broadcast — ${JOB_BOOST_PLANS.boost_broadcast.price.toLocaleString()} so‘m</b>`,
+      "• Mos sohadagi barcha 500+ ishchilarga shaxsiy Push-signal boradi.",
+      "",
+      `💎 <b>3. Super Paket — ${JOB_BOOST_PLANS.boost_super.price.toLocaleString()} so‘m</b>`,
+      "• Ham 24 soat TOP’da turish, ham barcha ishchilarga tezkor push-signal yuborish!",
+    ].join("\n");
+
+    const keyboard = new InlineKeyboard()
+      .text(`🔥 TOP E’lon (${JOB_BOOST_PLANS.boost_top.price.toLocaleString()} so‘m)`, `emp:pay_boost:${job.id}:boost_top`)
+      .row()
+      .text(`⚡️ Tezkor Broadcast (${JOB_BOOST_PLANS.boost_broadcast.price.toLocaleString()} so‘m)`, `emp:pay_boost:${job.id}:boost_broadcast`)
+      .row()
+      .text(`💎 Super Paket (${JOB_BOOST_PLANS.boost_super.price.toLocaleString()} so‘m)`, `emp:pay_boost:${job.id}:boost_super`)
+      .row()
+      .text("🔙 Bekor qilish", "emp:back_jobs");
+
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  // Choose payment method for Boost
+  mainBot.callbackQuery(/^emp:pay_boost:(.+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const jobId = ctx.match[1];
+    const planId = ctx.match[2];
+    const plan = JOB_BOOST_PLANS[planId];
+    if (!plan) return;
+
+    const text = [
+      `🚀 <b>${plan.name}</b>`,
+      "",
+      `💰 To‘lov summasi: <b>${plan.price.toLocaleString()} so‘m</b>`,
+      `📝 ${plan.description}`,
+      "",
+      "To‘lov usulini tanlang 👇",
+    ].join("\n");
+
+    const keyboard = new InlineKeyboard()
+      .text("⚡️ Test to‘lov (Darhol faollashtirish)", `emp:exec_boost:${jobId}:${planId}:test`)
+      .row()
+      .url("🔵 Click orqali to‘lash", "https://my.click.uz/")
+      .url("🟢 Payme orqali to‘lash", "https://payme.uz/")
+      .row()
+      .text("🔙 Ortga", `emp:boost_menu:${jobId}`);
+
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  // Execute Boost
+  mainBot.callbackQuery(/^emp:exec_boost:(.+):(.+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const jobId = ctx.match[1];
+    const planId = ctx.match[2];
+
+    const result = await boostJob(jobId, planId);
+    if (!result.success) {
+      await ctx.reply(result.message);
+      return;
+    }
+
+    await ctx.editMessageText(
+      result.message + "\n\nE’loningiz muvaffaqiyatli kuchaytirildi va nomzodlar oqimi boshlandi! 🎉",
+      { parse_mode: "HTML" }
+    );
+  });
+
   // 1. Create Job
   mainBot.hears("➕ Yangi e’lon berish", async (ctx) => {
     const telegramId = ctx.from?.id;

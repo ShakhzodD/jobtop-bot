@@ -6,9 +6,11 @@ export function getWorkerMainMenu() {
     .text("📄 Mening arizalarim")
     .row()
     .text("👤 Mening profilim")
-    .text("👥 Sherikni taklif qilish")
+    .text("⭐️ PRO Akkaunt")
     .row()
+    .text("👥 Sherikni taklif qilish")
     .text("🔄 Ish beruvchi rejimiga o‘tish")
+    .row()
     .text("✍️ Murojaat va takliflar")
     .resized();
 }

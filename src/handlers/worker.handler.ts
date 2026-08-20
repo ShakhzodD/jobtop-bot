@@ -1,3 +1,4 @@
+import { isUserPro, PRO_PLANS, activateProSubscription } from "../services/payment.service.js";
 
 export function extractContactInfo(text: string): { phone?: string; telegram?: string; rawDigits?: string } {
   const phoneRegex = /(?:\+?998[\s-]*)?(?:90|91|93|94|95|97|98|99|88|33|77|20)[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}|\b\d{2}[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}\b/;
@@ -83,6 +84,123 @@ function renderJobCard(job: DBJob, index: number, total: number) {
 }
 
 export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
+  // PRO Account Menu & Purchase Flow
+  mainBot.hears(["⭐️ PRO Akkaunt", "/pro"], async (ctx) => {
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const user = await getUserByTelegramId(telegramId);
+    const proInfo = isUserPro(user);
+
+    let statusText = "❌ <b>Hozirgi holat:</b> Oddiy Ishchi (Bepul)";
+    if (proInfo.isPro) {
+      statusText = `✅ <b>Hozirgi holat:</b> ⭐️ PRO Faol (${proInfo.expiresAt} gacha)\nTa'rif: <b>${proInfo.planName}</b>`;
+    }
+
+    const text = [
+      "⭐️ <b>JobTop PRO Usta / Ishchi Obunasi</b>",
+      "",
+      statusText,
+      "",
+      "💎 <b>PRO Akkauntning afzalliklari:</b>",
+      "• 🥇 <b>Arizalarda 1-o‘rin:</b> Ish beruvchiga ariza yuborganingizda, profilingiz eng yuqorida <b>“⭐️ PRO Ishonchli Usta”</b> belgisi bilan chiqadi.",
+      "• ⚡️ <b>Birinchi bo‘lib xabar olish:</b> Yangi chiqqan eng yuqori maoshli ishlarga boshqalardan oldin tezkor Push-xabar olasiz.",
+      "• 🛡 <b>Ishonchli nishon:</b> Profilingizda ko‘k tasdiqlangan belgi va yulduz aks etadi.",
+      "",
+      "👇 <b>Quyidagi qulay tariflardan birini tanlang:</b>",
+    ].join("\n");
+
+    const keyboard = new InlineKeyboard()
+      .text(`🥉 1 haftalik PRO — ${PRO_PLANS.pro_1week.price.toLocaleString()} so‘m`, "worker:pro_plan:pro_1week")
+      .row()
+      .text(`🥈 1 oylik PRO — ${PRO_PLANS.pro_1month.price.toLocaleString()} so‘m (Chegirma!)`, "worker:pro_plan:pro_1month")
+      .row()
+      .text("🔙 Asosiy menyu", "worker:back_menu");
+
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  // Choose payment method for PRO
+  mainBot.callbackQuery(/^worker:pro_plan:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const planId = ctx.match[1];
+    const plan = PRO_PLANS[planId];
+    if (!plan) return;
+
+    const text = [
+      `⭐️ <b>${plan.name}</b>`,
+      "",
+      `💰 To‘lov summasi: <b>${plan.price.toLocaleString()} so‘m</b>`,
+      `📝 Tavsif: ${plan.description}`,
+      "",
+      "To‘lov turini tanlang 👇",
+    ].join("\n");
+
+    const keyboard = new InlineKeyboard()
+      .text("⚡️ Test to‘lov (Darhol faollashtirish)", `worker:pay_pro:${planId}:test`)
+      .row()
+      .url("🔵 Click orqali to‘lash", `https://my.click.uz/`)
+      .url("🟢 Payme orqali to‘lash", `https://payme.uz/`)
+      .row()
+      .text("🔙 Tariflarga qaytish", "worker:buy_pro");
+
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  mainBot.callbackQuery("worker:buy_pro", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const telegramId = ctx.from.id;
+    const user = await getUserByTelegramId(telegramId);
+    const proInfo = isUserPro(user);
+
+    let statusText = "❌ <b>Hozirgi holat:</b> Oddiy Ishchi (Bepul)";
+    if (proInfo.isPro) {
+      statusText = `✅ <b>Hozirgi holat:</b> ⭐️ PRO Faol (${proInfo.expiresAt} gacha)`;
+    }
+
+    const text = [
+      "⭐️ <b>JobTop PRO Usta / Ishchi Obunasi</b>",
+      "",
+      statusText,
+      "",
+      "👇 <b>Quyidagi qulay tariflardan birini tanlang:</b>",
+    ].join("\n");
+
+    const keyboard = new InlineKeyboard()
+      .text(`🥉 1 haftalik PRO — ${PRO_PLANS.pro_1week.price.toLocaleString()} so‘m`, "worker:pro_plan:pro_1week")
+      .row()
+      .text(`🥈 1 oylik PRO — ${PRO_PLANS.pro_1month.price.toLocaleString()} so‘m`, "worker:pro_plan:pro_1month");
+
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  // Execute PRO Activation
+  mainBot.callbackQuery(/^worker:pay_pro:(.+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const planId = ctx.match[1];
+    const telegramId = ctx.from.id;
+
+    const result = await activateProSubscription(telegramId, planId);
+    if (!result.success) {
+      await ctx.reply(result.message);
+      return;
+    }
+
+    await ctx.editMessageText(
+      result.message + "\n\nEndi barcha arizalaringiz ish beruvchilarga <b>⭐️ PRO Ishonchli Usta</b> nishoni bilan eng yuqorida ko‘rinadi!",
+      { parse_mode: "HTML" }
+    );
+  });
+
   // View specific job from push notification / link
   mainBot.callbackQuery(/^job:view:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
@@ -630,6 +748,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       `👤 <b>Mening profilim:</b>`,
       "",
       `⭐️ <b>Reyting:</b> ${userRating.starsStr}`,
+      `💎 <b>Obuna holati:</b> ${isUserPro(user).isPro ? '⭐️ PRO Usta (Faol)' : 'Oddiy Ishchi'}`,
       `📊 <b>Profil to‘liqligi:</b> [${barStr}] <b>${percent}%</b>`,
       !isComplete
         ? `⚠️ <i>To‘ldirilmagan: ${missing.join(", ")}</i>`
@@ -654,10 +773,10 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       }`,
     ].join("\n");
 
-    const keyboard = new InlineKeyboard().text(
-      "✏️ Profilni tahrirlash",
-      "worker:edit_profile"
-    );
+    const proInfo = isUserPro(user);
+    const keyboard = new InlineKeyboard()
+      .text("✏️ Profilni tahrirlash", "worker:edit_profile")
+      .text(proInfo.isPro ? "⭐️ PRO: Faol" : "⭐️ PRO Obuna", "worker:buy_pro");
 
     await ctx.reply(profileText, {
       parse_mode: "HTML",
