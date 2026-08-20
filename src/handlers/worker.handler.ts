@@ -750,8 +750,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       `👤 <b>Mening profilim:</b>`,
       "",
       `⭐️ <b>Reyting:</b> ${userRating.starsStr}`,
-      `💎 <b>Obuna holati:</b> ${isUserPro(user).isPro ? '⭐️ PRO Usta (Faol)' : 'Oddiy Ishchi'}`,
-      `📊 <b>Profil to‘liqligi:</b> [${barStr}] <b>${percent}%</b>`,
+            `📊 <b>Profil to‘liqligi:</b> [${barStr}] <b>${percent}%</b>`,
       !isComplete
         ? `⚠️ <i>To‘ldirilmagan: ${missing.join(", ")}</i>`
         : "✅ <i>Profilingiz to‘liq to‘ldirilgan!</i>",
@@ -775,10 +774,10 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       }`,
     ].join("\n");
 
-    const proInfo = isUserPro(user);
-    const keyboard = new InlineKeyboard()
-      .text("✏️ Profilni tahrirlash", "worker:edit_profile")
-      .text(proInfo.isPro ? "⭐️ PRO: Faol" : "⭐️ PRO Obuna", "worker:buy_pro");
+    const keyboard = new InlineKeyboard().text(
+      "✏️ Profilni tahrirlash",
+      "worker:edit_profile"
+    );
 
     await ctx.reply(profileText, {
       parse_mode: "HTML",
