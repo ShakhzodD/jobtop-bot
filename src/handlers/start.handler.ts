@@ -10,6 +10,36 @@ import { roleSelectionKeyboard, contactRequestKeyboard } from "../keyboards/auth
 import { getWorkerMainMenu, getEmployerMainMenu } from "../keyboards/main-menu.js";
 
 export function registerStartHandlers(bot: Bot<MyContext>) {
+  // Referral & Invite Friends
+  bot.hears(["👥 Sherikni taklif qilish", "👥 Do‘stlarni taklif qilish"], async (ctx) => {
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const botInfo = await bot.api.getMe();
+    const refLink = `https://t.me/${botInfo.username}?start=ref_${telegramId}`;
+    const shareText = encodeURIComponent(
+      `Toshkentda bir kunlik va kunbay ishlarni topish uchun JobTop botiga kiring! Do‘stlar va brigadalar uchun juda qulay:\n${refLink}`
+    );
+
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
+
+    const keyboard = new InlineKeyboard().url(
+      "📤 Do‘stlarga / Guruhga ulashish",
+      shareUrl
+    );
+
+    await ctx.reply(
+      "👥 <b>Do‘stlaringiz va sheriklaringizni taklif qiling!</b>\n\n" +
+        "JobTop botini do‘stlaringiz, tanishlaringiz va brigadangizga yuboring. Birgalikda jamoaviy ishlarga oson ariza topshiring va daromad qiling!\n\n" +
+        `🔗 <b>Sizning shaxsiy taklif havolangiz:</b>\n<code>${refLink}</code>\n\n` +
+        "Pastdagi tugma orqali havolani to‘g‘ridan-to‘g‘ri Telegramdagi do‘stlaringiz yoki guruhlarga bitta bosishda yuborishingiz mumkin 👇",
+      {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      }
+    );
+  });
+
   // Support & Feedback
   bot.hears("✍️ Murojaat va takliflar", async (ctx) => {
     await ctx.conversation.enter("feedbackConversation");

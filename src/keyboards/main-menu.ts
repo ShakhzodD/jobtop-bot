@@ -6,8 +6,9 @@ export function getWorkerMainMenu() {
     .text("📄 Mening arizalarim")
     .row()
     .text("👤 Mening profilim")
-    .text("🔄 Ish beruvchi rejimiga o‘tish")
+    .text("👥 Sherikni taklif qilish")
     .row()
+    .text("🔄 Ish beruvchi rejimiga o‘tish")
     .text("✍️ Murojaat va takliflar")
     .resized();
 }
@@ -17,7 +18,9 @@ export function getEmployerMainMenu() {
     .text("➕ Yangi e’lon berish")
     .text("📋 Mening e’lonlarim")
     .row()
+    .text("👥 Do‘stlarni taklif qilish")
     .text("🔄 Ishchi rejimiga o‘tish")
+    .row()
     .text("✍️ Murojaat va takliflar")
     .resized();
 }

@@ -90,8 +90,12 @@ export async function broadcastJobToMatchingWorkers(
   if (!workers || !workers.length) return;
 
   const matchingWorkers = workers.filter((w) =>
-    Array.isArray(w.worker_categories) && w.worker_categories.includes(job.category)
+    !w.worker_categories ||
+    !Array.isArray(w.worker_categories) ||
+    w.worker_categories.length === 0 ||
+    w.worker_categories.includes(job.category)
   );
+  console.log(`📢 "${job.title}" e’loni uchun ${matchingWorkers.length} ta mos ishchiga xabar yuborilmoqda...`);
 
   const text = [
     "⚡️ <b>Siz uchun yangi mos ish e’loni!</b>",

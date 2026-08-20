@@ -83,6 +83,42 @@ function renderJobCard(job: DBJob, index: number, total: number) {
 }
 
 export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
+  // View specific job from push notification / link
+  mainBot.callbackQuery(/^job:view:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const jobId = ctx.match[1];
+    const job = await getJobById(jobId);
+
+    if (!job || job.status !== "published") {
+      await ctx.reply("😔 Ushbu e’lon endi faol emas yoki o‘chirilgan.");
+      return;
+    }
+
+    const text = renderJobCard(job, 0, 1);
+    const isExternal = Boolean(job.source_name || job.source_url || !job.employer_id);
+    const keyboard = new InlineKeyboard();
+
+    if (isExternal) {
+      const contacts = extractContactInfo(job.description);
+      if (contacts.telegram) {
+        keyboard.url("💬 Telegramdan yozish", "https://t.me/" + contacts.telegram.replace("@", "")).row();
+      }
+      if (job.source_url && job.source_url.startsWith("http")) {
+        keyboard.url("🔗 Asl manbaga o‘tish", job.source_url).row();
+      }
+      keyboard.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
+    } else {
+      keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:all:0`).row();
+    }
+
+    keyboard.text("🔍 Barcha ishlarni ko‘rish", "worker:feed:all:0");
+
+    await ctx.reply(text, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
   // Handle external job contact info
   mainBot.callbackQuery(/^worker:contact_ext:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});

@@ -1,3 +1,5 @@
+import { broadcastJobToMatchingWorkers } from "./moderation.service.js";
+import { bot } from "../core/bots.js";
 import https from "node:https";
 import { createHash } from "node:crypto";
 import { supabase } from "../core/supabase.js";
@@ -246,6 +248,7 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
 
       importedCount++;
       console.log(`✅ Toza e'lon bazaga qo'shildi: "${title}" (${district}, ${payAmount} so'm)`);
+      await broadcastJobToMatchingWorkers(bot.api, job).catch(() => {});
 
       // Notify Admins via Moderation Bot
       const adminIds = config.adminTelegramIds.length > 0 ? config.adminTelegramIds : [445057374];
