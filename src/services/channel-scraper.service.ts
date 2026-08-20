@@ -1,3 +1,21 @@
+
+function safeIsoTimestamp(dateStr?: string | null, fallbackOffsetHours = 0): string {
+  if (!dateStr) {
+    return new Date(Date.now() + fallbackOffsetHours * 3600 * 1000).toISOString();
+  }
+  const parsed = Date.parse(dateStr);
+  if (isNaN(parsed)) {
+    const timeMatch = dateStr.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      const d = new Date();
+      d.setHours(parseInt(timeMatch[1], 10), parseInt(timeMatch[2], 10), 0, 0);
+      return d.toISOString();
+    }
+    return new Date(Date.now() + fallbackOffsetHours * 3600 * 1000).toISOString();
+  }
+  return new Date(parsed).toISOString();
+}
+
 import { broadcastJobToMatchingWorkers } from "./moderation.service.js";
 import { bot } from "../core/bots.js";
 import https from "node:https";
@@ -224,8 +242,8 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
         description,
         district,
         address,
-        starts_at: parsed.startsAt || new Date().toISOString(),
-        ends_at: parsed.endsAt || new Date(Date.now() + 86400000).toISOString(),
+        starts_at: safeIsoTimestamp(parsed.startsAt, 0),
+        ends_at: safeIsoTimestamp(parsed.endsAt, 24),
         pay_amount: payAmount,
         openings,
         source_name: sourceName,
