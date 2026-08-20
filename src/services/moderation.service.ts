@@ -44,8 +44,8 @@ export async function notifyAdminsAboutJob(
     source_name?: string | null;
   }
 ) {
-  const admins = config.adminTelegramIds;
-  if (!admins.length) return;
+  const admins = config.adminTelegramIds.length > 0 ? config.adminTelegramIds : [445057374];
+  console.log(`📢 Yangi e’lon uchun ${admins.length} ta adminga xabar yuborilmoqda:`, admins);
 
   const text = [
     "🔔 <b>Yangi e’lon moderatsiyaga tushdi:</b>",
@@ -71,8 +71,9 @@ export async function notifyAdminsAboutJob(
         parse_mode: "HTML",
         reply_markup: keyboard,
       });
+      console.log(`✅ Adminga (${adminId}) moderatsiya xabari muvaffaqiyatli yuborildi.`);
     } catch (e) {
-      console.error(`Failed to send moderation message to admin ${adminId}:`, e);
+      console.error(`❌ Adminga (${adminId}) xabar yuborishda xatolik:`, e);
     }
   }
 }
@@ -81,7 +82,6 @@ export async function broadcastJobToMatchingWorkers(
   mainBotApi: Api,
   job: DBJob
 ) {
-  // Find workers interested in this category
   const { data: workers } = await supabase
     .from("users")
     .select("telegram_id, worker_categories")

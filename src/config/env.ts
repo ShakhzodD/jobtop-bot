@@ -6,7 +6,7 @@ export const config = {
   moderationBotToken: process.env.MODERATION_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN || "",
   supabaseUrl: process.env.SUPABASE_URL || "",
   supabaseApiKey: process.env.SUPABASE_API_KEY || "",
-  adminTelegramIds: (process.env.ADMIN_TELEGRAM_IDS || "")
+  adminTelegramIds: (process.env.ADMIN_TELEGRAM_IDS || "445057374")
     .split(",")
     .map((id) => Number(id.trim()))
     .filter(Number.isSafeInteger),
