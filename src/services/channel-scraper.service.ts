@@ -1,4 +1,43 @@
 
+function extractContactFingerprints(text: string): { phoneDigits?: string; telegramHandle?: string } {
+  const phoneRegex = /(?:\+?998[\s-]*)?(?:90|91|93|94|95|97|98|99|88|33|77|20)[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}|\b\d{2}[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}\b/;
+  const phoneMatch = text.match(phoneRegex);
+
+  const tgRegex = /@([a-zA-Z0-9_]{4,})/;
+  const tgMatch = text.match(tgRegex);
+
+  let phoneDigits: string | undefined = undefined;
+  if (phoneMatch) {
+    const digits = phoneMatch[0].replace(/\D/g, "");
+    phoneDigits = digits.length === 9 ? "998" + digits : digits;
+  }
+
+  return {
+    phoneDigits,
+    telegramHandle: tgMatch ? tgMatch[1].toLowerCase() : undefined,
+  };
+}
+
+function getWordTokens(text: string): Set<string> {
+  const words = text
+    .toLowerCase()
+    .replace(/[^a-zа-яё0-9\s]/gi, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 3);
+  return new Set(words);
+}
+
+function calculateJaccardSimilarity(setA: Set<string>, setB: Set<string>): number {
+  if (setA.size === 0 || setB.size === 0) return 0;
+  let intersection = 0;
+  for (const item of setA) {
+    if (setB.has(item)) intersection++;
+  }
+  const union = new Set([...setA, ...setB]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+
 function safeIsoTimestamp(dateStr?: string | null, fallbackOffsetHours = 0): string {
   if (!dateStr) {
     return new Date(Date.now() + fallbackOffsetHours * 3600 * 1000).toISOString();
@@ -189,17 +228,52 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
         continue; // Already processed
       }
 
-      // 4. Also check if a job with similar description already exists in `jobs`
-      const first50 = post.text.slice(0, 50).trim();
-      const { data: similarJob } = await supabase
+      // 4. Multi-Stage Deduplication against recent jobs (last 48 hours)
+      const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+      const { data: recentJobs } = await supabase
         .from("jobs")
-        .select("id")
-        .ilike("description", `%${first50}%`)
-        .limit(1)
-        .maybeSingle();
+        .select("id, description, title, pay_amount")
+        .gte("created_at", twoDaysAgo)
+        .limit(100);
 
-      if (similarJob) {
-        // Record as duplicate in imports table to avoid re-checking
+      const contacts = extractContactFingerprints(post.text);
+      const postTokens = getWordTokens(post.text);
+
+      let isDuplicate = false;
+      if (recentJobs && recentJobs.length > 0) {
+        for (const rj of recentJobs) {
+          const rjContacts = extractContactFingerprints(rj.description);
+
+          // Contact-based matching (Same phone or same telegram in 48 hours)
+          if (
+            contacts.phoneDigits &&
+            rjContacts.phoneDigits &&
+            contacts.phoneDigits === rjContacts.phoneDigits
+          ) {
+            isDuplicate = true;
+            break;
+          }
+
+          if (
+            contacts.telegramHandle &&
+            rjContacts.telegramHandle &&
+            contacts.telegramHandle === rjContacts.telegramHandle
+          ) {
+            isDuplicate = true;
+            break;
+          }
+
+          // Content-based fuzzy token similarity (> 55% similarity)
+          const rjTokens = getWordTokens(rj.description);
+          const similarity = calculateJaccardSimilarity(postTokens, rjTokens);
+          if (similarity > 0.55) {
+            isDuplicate = true;
+            break;
+          }
+        }
+      }
+
+      if (isDuplicate) {
         await supabase.from("ai_job_imports").insert({
           source_name: sourceName,
           source_url: post.sourceUrl ?? null,
