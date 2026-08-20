@@ -128,3 +128,31 @@ export async function updateWorkerProfile(
     throw error;
   }
 }
+
+const userLastSeenCache = new Map<number, number>();
+
+export async function touchUserActivity(telegramId: number): Promise<void> {
+  const now = Date.now();
+  const last = userLastSeenCache.get(telegramId) || 0;
+  // Update at most once every 5 minutes per user to save DB writes
+  if (now - last < 5 * 60 * 1000) return;
+  userLastSeenCache.set(telegramId, now);
+
+  try {
+    const user = await getUserByTelegramId(telegramId);
+    if (!user) return;
+
+    const currentBotState = (user as any).bot_state || {};
+    await supabase
+      .from("users")
+      .update({
+        bot_state: {
+          ...currentBotState,
+          last_active_at: new Date().toISOString(),
+        },
+      })
+      .eq("id", user.id);
+  } catch (err) {
+    // ignore background error
+  }
+}

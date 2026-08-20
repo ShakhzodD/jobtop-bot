@@ -314,35 +314,78 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
 
   // 4. "📊 Statistika" Button
   modBot.hears("📊 Statistika", async (ctx) => {
+    await ctx.replyWithChatAction("typing").catch(() => {});
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
     const [
       { count: usersCount },
+      { count: workersCount },
+      { count: employersCount },
       { count: newUsers24h },
       { count: publishedJobsCount },
       { count: newJobs24h },
       { count: pendingJobsCount },
       { count: applicationsCount },
       { count: newApps24h },
+      { count: selectedAppsCount },
+      { data: recentJobs },
     ] = await Promise.all([
       supabase.from("users").select("*", { count: "exact", head: true }),
+      supabase.from("users").select("*", { count: "exact", head: true }).eq("active_role", "worker"),
+      supabase.from("users").select("*", { count: "exact", head: true }).eq("active_role", "employer"),
       supabase.from("users").select("*", { count: "exact", head: true }).gte("created_at", oneDayAgo),
       supabase.from("jobs").select("*", { count: "exact", head: true }).eq("status", "published"),
       supabase.from("jobs").select("*", { count: "exact", head: true }).gte("created_at", oneDayAgo),
       supabase.from("jobs").select("*", { count: "exact", head: true }).eq("status", "pending_moderation"),
       supabase.from("applications").select("*", { count: "exact", head: true }),
       supabase.from("applications").select("*", { count: "exact", head: true }).gte("created_at", oneDayAgo),
+      supabase.from("applications").select("*", { count: "exact", head: true }).eq("status", "selected"),
+      supabase.from("jobs").select("category, district").eq("status", "published").limit(100),
     ]);
 
+    // Calculate category breakdown
+    const catCounts: Record<string, number> = {};
+    if (recentJobs) {
+      for (const j of recentJobs) {
+        if (j.category) {
+          catCounts[j.category] = (catCounts[j.category] || 0) + 1;
+        }
+      }
+    }
+
+    const catBreakdown = Object.entries(catCounts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([cat, count]) => `• ${cat}: <b>${count} ta</b>`)
+      .join("\n");
+
+    const hiringRate = (applicationsCount ?? 0) > 0
+      ? Math.round(((selectedAppsCount ?? 0) / applicationsCount!) * 100)
+      : 0;
+
     const statsText = [
-      "📊 <b>JobTop Jonli Tizim Statistikasi:</b>",
+      "📊 <b>JobTop Tizim va Faollik Tahlili (Analytics):</b>",
       "",
-      `👥 <b>Foydalanuvchilar:</b> ${usersCount ?? 0} ta <i>(+ ${newUsers24h ?? 0} ta so‘nggi 24 soatda)</i>`,
-      `🟢 <b>Faol e’lonlar:</b> ${publishedJobsCount ?? 0} ta <i>(+ ${newJobs24h ?? 0} ta yangi)</i>`,
-      `⏳ <b>Kutilayotgan moderatsiya:</b> ${pendingJobsCount ?? 0} ta`,
-      `📄 <b>Jami arizalar:</b> ${applicationsCount ?? 0} ta <i>(+ ${newApps24h ?? 0} ta so‘nggi 24 soatda)</i>`,
+      "👥 <b>Foydalanuvchilar Oqimi:</b>",
+      `• Jami ro‘yxatdan o‘tganlar: <b>${usersCount ?? 0} ta</b>`,
+      `• 👷 Ishchilar: <b>${workersCount ?? 0} ta</b>`,
+      `• 💼 Ish beruvchilar: <b>${employersCount ?? 0} ta</b>`,
+      `• ⚡️ So‘nggi 24 soatda qo‘shilgan: <b>+${newUsers24h ?? 0} ta</b>`,
       "",
-      "🟢 <i>Server va barcha kanallar avtomatik monitoringi faol!</i>",
-    ].join("\n");
+      "💼 <b>E’lonlar va Bozor Holati:</b>",
+      `• Hozir faol e’lonlar: <b>${publishedJobsCount ?? 0} ta</b>`,
+      `• ⏳ Moderatsiyada kutilmoqda: <b>${pendingJobsCount ?? 0} ta</b>`,
+      `• 🆕 So‘nggi 24 soatda kiritilgan: <b>+${newJobs24h ?? 0} ta</b>`,
+      catBreakdown ? `\n📂 <b>Sohalar bo‘yicha taqsimot:</b>\n${catBreakdown}` : "",
+      "",
+      "📄 <b>Arizalar va Ishga Yollash (Konversiya):</b>",
+      `• Jami topshirilgan arizalar: <b>${applicationsCount ?? 0} ta</b>`,
+      `• ⚡️ So‘nggi 24 soatda arizalar: <b>+${newApps24h ?? 0} ta</b>`,
+      `• ✅ Ishga qabul qilinganlar: <b>${selectedAppsCount ?? 0} ta</b>`,
+      `• 📈 Ishga joylashish ko‘rsatkichi: <b>${hiringRate}%</b>`,
+      "",
+      "🟢 <i>8 ta kanal avtomatik monitoringi va 24/7 server faol!</i>",
+    ].filter(Boolean).join("\n");
 
     await ctx.reply(statsText, {
       parse_mode: "HTML",

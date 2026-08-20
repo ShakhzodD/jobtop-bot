@@ -1,3 +1,4 @@
+import { touchUserActivity } from "./services/user.service.js";
 import { paymentReceiptConversation } from "./conversations/payment-receipt.conversation.js";
 import { startDailyReportCron } from "./services/report.service.js";
 import { feedbackConversation } from "./conversations/feedback.conversation.js";
@@ -34,6 +35,14 @@ import { registerEmployerHandlers } from "./handlers/employer.handler.js";
 import { registerAdminHandlers } from "./handlers/admin.handler.js";
 
 // Instant callback query response & loading state middleware
+bot.use(async (ctx, next) => {
+  const tid = ctx.from?.id;
+  if (tid) {
+    touchUserActivity(tid).catch(() => {});
+  }
+  return next();
+});
+
 bot.on("callback_query", async (ctx, next) => {
   ctx.answerCallbackQuery().catch(() => {});
   return next();
