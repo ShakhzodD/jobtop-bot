@@ -2,9 +2,24 @@
 function renderAdminUserCard(user: any, index: number, total: number) {
   const isWorker = user.active_role === "worker";
   const roleLabel = isWorker ? "👷 Ishchi" : "💼 Ish beruvchi";
-  const tgLink = user.telegram_username
-    ? `<a href="https://t.me/${user.telegram_username}">@${user.telegram_username}</a>`
-    : `<a href="tg://user?id=${user.telegram_id}">Profilga o‘tish</a>`;
+  
+  let tgLink = "";
+  if (user.telegram_username) {
+    tgLink = `<a href="https://t.me/${user.telegram_username}">@${user.telegram_username}</a>`;
+  } else {
+    tgLink = `<a href="tg://user?id=${user.telegram_id}">👤 ${user.full_name} (Lichkaga o‘tish)</a>`;
+  }
+
+  // Format phone nicely
+  let formattedPhone = user.phone || "Kiritilmagan";
+  if (user.phone) {
+    const d = user.phone.replace(/\D/g, "");
+    if (d.length === 12 && d.startsWith("998")) {
+      formattedPhone = `+998 ${d.slice(3, 5)} ${d.slice(5, 8)} ${d.slice(8, 10)} ${d.slice(10, 12)}`;
+    } else if (d.length === 9) {
+      formattedPhone = `+998 ${d.slice(0, 2)} ${d.slice(2, 5)} ${d.slice(5, 7)} ${d.slice(7, 9)}`;
+    }
+  }
 
   const regDate = new Date(user.created_at).toLocaleDateString("uz-UZ", {
     timeZone: "Asia/Tashkent",
@@ -19,7 +34,7 @@ function renderAdminUserCard(user: any, index: number, total: number) {
     `👤 <b>${user.full_name}</b> (${index + 1}/${total})`,
     `🔄 <b>Roli:</b> ${roleLabel}`,
     "",
-    `📱 <b>Telefon:</b> <code>${user.phone || "Kiritilmagan"}</code>`,
+    `📱 <b>Telefon:</b> <code>${formattedPhone}</code>`,
     `💬 <b>Telegram:</b> ${tgLink}`,
     `🆔 <b>Telegram ID:</b> <code>${user.telegram_id}</code>`,
     `📍 <b>Tuman:</b> ${user.district || "Kiritilmagan"}`,
@@ -99,6 +114,14 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
     const keyboard = new InlineKeyboard();
     if (user.telegram_username) {
       keyboard.url("💬 Telegramdan yozish", `https://t.me/${user.telegram_username}`).row();
+    } else if (user.phone) {
+      const cleanP = user.phone.replace(/\D/g, "");
+      const fullP = cleanP.startsWith("998") ? cleanP : "998" + cleanP;
+      keyboard.url("💬 Telegramdan yozish", `https://t.me/+${fullP}`).row();
+    } else if (user.phone) {
+      const cleanP = user.phone.replace(/\D/g, "");
+      const fullP = cleanP.startsWith("998") ? cleanP : "998" + cleanP;
+      keyboard.url("💬 Telegramdan yozish", `https://t.me/+${fullP}`).row();
     }
 
     // Pagination
