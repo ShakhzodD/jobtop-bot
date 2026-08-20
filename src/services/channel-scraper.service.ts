@@ -232,7 +232,7 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
       const address = parsed.address || district;
       const payAmount = parsed.payAmount || 200000;
       const openings = parsed.openings || 1;
-      const description = `${post.text}\n\n🔗 Manba: @${cleanName}`;
+      const description = post.text;
 
       // 6. Create clean published job
       const job = await createJob({

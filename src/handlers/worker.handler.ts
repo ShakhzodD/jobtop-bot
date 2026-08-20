@@ -46,23 +46,25 @@ import { JOB_CATEGORIES } from "../core/gemini.js";
 import { supabase } from "../core/supabase.js";
 
 function renderJobCard(job: DBJob, index: number, total: number) {
-  const isExternal = Boolean(job.source_name || job.source_url || !job.employer_id);
   const contacts = extractContactInfo(job.description);
 
   let contactLine = "";
-  if (isExternal) {
-    if (contacts.phone && contacts.telegram) {
-      contactLine = `📞 <b>Aloqa:</b> <code>${contacts.phone}</code> (${contacts.telegram})`;
-    } else if (contacts.phone) {
-      contactLine = `📞 <b>Aloqa / Tel:</b> <code>${contacts.phone}</code>`;
-    } else if (contacts.telegram) {
-      contactLine = `💬 <b>Aloqa (Telegram):</b> ${contacts.telegram}`;
-    }
+  if (contacts.phone && contacts.telegram) {
+    contactLine = `📞 <b>Aloqa:</b> <code>${contacts.phone}</code> (${contacts.telegram})`;
+  } else if (contacts.phone) {
+    contactLine = `📞 <b>Aloqa / Tel:</b> <code>${contacts.phone}</code>`;
+  } else if (contacts.telegram) {
+    contactLine = `💬 <b>Aloqa (Telegram):</b> ${contacts.telegram}`;
   }
+
+  // Clean description of any legacy source text
+  const cleanDescription = job.description
+    .replace(/🔗\s*Manba:[^\n]+/gi, "")
+    .replace(/🌐\s*Manba:[^\n]+/gi, "")
+    .trim();
 
   const lines = [
     `📋 <b>${job.title}</b> (${index + 1}/${total})`,
-    isExternal ? `🌐 <i>(Tashqi e’lon — ${job.source_name || "Agregator"})</i>` : `✨ <i>(JobTop orqali to‘g‘ridan-to‘g‘ri)</i>`,
     "",
     `📂 <b>Kategoriya:</b> ${job.category}`,
     `📍 <b>Tuman:</b> ${job.district}`,
@@ -77,7 +79,7 @@ function renderJobCard(job: DBJob, index: number, total: number) {
       minute: "2-digit",
     })}`,
     "",
-    `📝 <b>Tavsif:</b>\n${job.description}`,
+    `📝 <b>Tavsif:</b>\n${cleanDescription}`,
   ];
 
   return lines.filter(Boolean).join("\n");
@@ -223,9 +225,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       if (contacts.telegram) {
         keyboard.url("💬 Telegramdan yozish", "https://t.me/" + contacts.telegram.replace("@", "")).row();
       }
-      if (job.source_url && job.source_url.startsWith("http")) {
-        keyboard.url("🔗 Asl manbaga o‘tish", job.source_url).row();
-      }
+      
       keyboard.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
     } else {
       keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:all:0`).row();
@@ -255,9 +255,9 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       `📌 <b>E’lon:</b> ${job.title}`,
       `💰 <b>Ish haqi:</b> ${job.pay_amount.toLocaleString()} so‘m`,
       `📍 <b>Manzil:</b> ${job.district}, ${job.address}`,
-      job.source_name ? `🌐 <b>Manba:</b> ${job.source_name}` : "",
+      
       "",
-      `📝 <b>Tavsif va aloqa ma’lumoti:</b>\n${job.description}`,
+      `📝 <b>Tavsif va aloqa ma’lumoti:</b>\n${job.description.replace(/🔗\s*Manba:[^\n]+/gi, '').trim()}`,
       "",
       "💡 <i>Qo‘ng‘iroq qilib JobTop orqali ko‘rganingizni aytsangiz bo‘ladi!</i>",
     ]
@@ -265,9 +265,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       .join("\n");
 
     const kb = new InlineKeyboard();
-    if (job.source_url && job.source_url.startsWith("http")) {
-      kb.url("🌐 Asl sahifani ochish", job.source_url);
-    }
+    
 
     await ctx.reply(contactMsg, {
       parse_mode: "HTML",
@@ -328,9 +326,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       if (contacts.telegram) {
         keyboard.url("💬 Telegramdan yozish", "https://t.me/" + contacts.telegram.replace("@", "")).row();
       }
-      if (job.source_url && job.source_url.startsWith("http")) {
-        keyboard.url("🔗 Asl manbaga o‘tish", job.source_url).row();
-      }
+      
       keyboard.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
     } else {
       keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:${categoryParam}:${offset}`).row();
