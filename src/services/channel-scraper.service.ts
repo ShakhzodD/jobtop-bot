@@ -31,6 +31,10 @@ const DEFAULT_CHANNELS = [
   "kunlik_ishlar_toshkentuz",
   "kunlikishlaruz24",
   "kunlik_ish_uz",
+  "kunlik_ish_toshkent",
+  "toshkent_kunlik_ishlar",
+  "talabalar_uchun_ishlar",
+  "mardikor_bozor_toshkent",
 ];
 
 const JOB_KEYWORDS = [
