@@ -1,15 +1,15 @@
 import https from "node:https";
 import { createHash } from "node:crypto";
 import { supabase } from "../core/supabase.js";
-import { parseJobWithGemini } from "../core/gemini.js";
+import { parseJobWithGemini, containsInappropriateContent } from "../core/gemini.js";
 import { createJob } from "./job.service.js";
 import { modBot } from "../core/bots.js";
 import { config } from "../config/env.js";
 
 const DEFAULT_CHANNELS = [
+  "kunlik_ishlar_toshkentuz",
   "kunlikishlaruz24",
   "kunlik_ish_uz",
-  "kunlik_ishlar_toshkentuz",
 ];
 
 const JOB_KEYWORDS = [
@@ -35,14 +35,24 @@ const JOB_KEYWORDS = [
   "qurilish",
 ];
 
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .slice(0, 150);
+}
+
 function contentHash(sourceName: string, text: string): string {
+  const norm = normalizeText(text);
   return createHash("sha256")
-    .update(`${sourceName}\n${text.trim()}`)
+    .update(norm)
     .digest("hex");
 }
 
 function hasJobKeywords(text: string): boolean {
   if (text.length < 30) return false;
+  if (containsInappropriateContent(text)) return false;
+
   const lower = text.toLowerCase();
   let matches = 0;
   for (const kw of JOB_KEYWORDS) {
@@ -89,7 +99,6 @@ function extractPostsFromHtml(html: string, channelUsername: string): ScrapedPos
   const posts: ScrapedPost[] = [];
   const cleanUsername = channelUsername.replace("@", "");
 
-  // Match widget messages
   const messageRegex =
     /<div class="tgme_widget_message_wrap[^"]*"[^>]*>[\s\S]*?<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>[\s\S]*?<\/div>/g;
 
@@ -104,7 +113,6 @@ function extractPostsFromHtml(html: string, channelUsername: string): ScrapedPos
       .replace(/<[^>]+>/g, "")
       .trim();
 
-    // Extract message ID from data-post
     const dataPostMatch = fullBlock.match(/data-post="[^/]+\/(\d+)"/);
     const messageId = dataPostMatch ? parseInt(dataPostMatch[1], 10) : undefined;
     const sourceUrl = messageId
@@ -132,15 +140,20 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
 
     let importedCount = 0;
 
-    // Process most recent 5 posts
     for (const post of posts.slice(-5)) {
+      // 1. Inappropriate & 18+ content check
+      if (containsInappropriateContent(post.text)) {
+        console.log(`🚫 18+ / Taqiqlangan post filtrlandi (@${cleanName}): ${post.text.slice(0, 40)}...`);
+        continue;
+      }
+
+      // 2. Keyword relevance check
       if (!hasJobKeywords(post.text)) {
         continue;
       }
 
+      // 3. Strict Deduplication check by hash
       const hash = contentHash(sourceName, post.text);
-
-      // Check if already processed
       const { data: existing } = await supabase
         .from("ai_job_imports")
         .select("id")
@@ -148,16 +161,38 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
         .maybeSingle();
 
       if (existing) {
+        continue; // Already processed
+      }
+
+      // 4. Also check if a job with similar description already exists in `jobs`
+      const first50 = post.text.slice(0, 50).trim();
+      const { data: similarJob } = await supabase
+        .from("jobs")
+        .select("id")
+        .ilike("description", `%${first50}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (similarJob) {
+        // Record as duplicate in imports table to avoid re-checking
+        await supabase.from("ai_job_imports").insert({
+          source_name: sourceName,
+          source_url: post.sourceUrl ?? null,
+          source_external_id: post.messageId ? String(post.messageId) : null,
+          raw_text: post.text,
+          content_hash: hash,
+          confidence: 0,
+          status: "duplicate",
+        });
         continue;
       }
 
       console.log(`🤖 Yangi e'lon tahlil qilinmoqda (@${cleanName}): ${post.text.slice(0, 50)}...`);
 
-      // Parse with Gemini Flash
+      // 5. Parse with Gemini AI with strict safety validation
       const parsed = await parseJobWithGemini(post.text, sourceName);
 
-      if (!parsed.isVacancy) {
-        // Record non-vacancy to avoid re-parsing
+      if (!parsed.isVacancy || !parsed.isAppropriate) {
         await supabase.from("ai_job_imports").insert({
           source_name: sourceName,
           source_url: post.sourceUrl ?? null,
@@ -178,7 +213,7 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
       const openings = parsed.openings || 1;
       const description = `${post.text}\n\n🔗 Manba: @${cleanName}`;
 
-      // Create directly as published external job
+      // 6. Create clean published job
       const job = await createJob({
         employer_id: null,
         category,
@@ -209,12 +244,12 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
       });
 
       importedCount++;
-      console.log(`✅ Yangi e'lon bazaga qo'shildi: "${title}" (${district}, ${payAmount} so'm)`);
+      console.log(`✅ Toza e'lon bazaga qo'shildi: "${title}" (${district}, ${payAmount} so'm)`);
 
       // Notify Admins via Moderation Bot
       const adminIds = config.adminTelegramIds.length > 0 ? config.adminTelegramIds : [445057374];
       const notifyText = [
-        "⚡️ <b>Kanaldan yangi e’lon avtomatik import qilindi!</b>",
+        "⚡️ <b>Yangi e’lon avtomatik import qilindi!</b>",
         "",
         `📌 <b>${job.title}</b>`,
         `📂 Kategoriya: ${job.category}`,
@@ -223,7 +258,7 @@ export async function checkChannelForNewJobs(channelUsername: string): Promise<n
         `👥 Bo‘sh o‘rin: ${job.openings} ta`,
         `🌐 Manba: @${cleanName}`,
         "",
-        `<i>E’lon to‘g‘ridan-to‘g‘ri bot foydalanuvchilariga chiqarildi.</i>`,
+        `<i>E’lon tekshirildi va xavfsiz deb topildi.</i>`,
       ].join("\n");
 
       for (const adminId of adminIds) {

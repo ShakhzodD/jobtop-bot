@@ -11,6 +11,7 @@ export type JobCategory = (typeof JOB_CATEGORIES)[number];
 
 export interface ParsedJob {
   isVacancy: boolean;
+  isAppropriate: boolean;
   category: JobCategory | null;
   title: string | null;
   description: string | null;
@@ -20,6 +21,7 @@ export interface ParsedJob {
   endsAt: string | null;
   payAmount: number | null;
   openings: number | null;
+  contactPhone?: string | null;
   confidence: number;
 }
 
@@ -31,10 +33,67 @@ const FALLBACK_MODELS = [
   "gemini-flash-latest",
 ].filter(Boolean);
 
-// Unique models list
 const MODELS_TO_TRY = [...new Set(FALLBACK_MODELS)];
 
+// Inappropriate words & spam filter
+const INAPPROPRIATE_WORDS = [
+  "massaj",
+  "intim",
+  "18+",
+  "sauna",
+  "relax",
+  "body",
+  "qizlar kerak",
+  "qiz bola kerak faqat",
+  "tungi",
+  "klub",
+  "striptiz",
+  "qimor",
+  "kazino",
+  "casino",
+  "1xbet",
+  "melbet",
+  "mostbet",
+  "stavka",
+  "kripto",
+  "crypto",
+  "investitsiya",
+  "oson daromad",
+  "piramida",
+  "karta sotiladi",
+  "tanishuv",
+  "homiylik",
+  "sponsor",
+];
+
+export function containsInappropriateContent(text: string): boolean {
+  const lower = text.toLowerCase();
+  for (const word of INAPPROPRIATE_WORDS) {
+    if (lower.includes(word)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function smartRegexFallback(rawText: string): ParsedJob {
+  if (containsInappropriateContent(rawText)) {
+    return {
+      isVacancy: false,
+      isAppropriate: false,
+      category: null,
+      title: null,
+      description: null,
+      district: null,
+      address: null,
+      startsAt: null,
+      endsAt: null,
+      payAmount: null,
+      openings: null,
+      confidence: 0,
+    };
+  }
+
   const lower = rawText.toLowerCase();
 
   // 1. Detect Category
@@ -47,7 +106,7 @@ function smartRegexFallback(rawText: string): ParsedJob {
     category = "Tozalash";
   }
 
-  // 2. Detect Salary (e.g. 200 000, 250000, 200 ming, 300k)
+  // 2. Detect Salary
   let payAmount: number | null = null;
   const thousandMatch = rawText.match(/(\d+)\s*(ming|k)/i);
   if (thousandMatch) {
@@ -62,7 +121,7 @@ function smartRegexFallback(rawText: string): ParsedJob {
     }
   }
 
-  // 3. Detect Openings (e.g. 2 ta, 3 nafar)
+  // 3. Detect Openings
   let openings = 1;
   const openingsMatch = rawText.match(/(\d+)\s*(ta|nafar|kishi|yigit|ayol|ishchi)/i);
   if (openingsMatch) {
@@ -86,6 +145,7 @@ function smartRegexFallback(rawText: string): ParsedJob {
 
   return {
     isVacancy: true,
+    isAppropriate: true,
     category,
     title: title || "Kunlik ish",
     description: rawText,
@@ -103,22 +163,40 @@ export async function parseJobWithGemini(
   rawText: string,
   sourceName = "Telegram Bot"
 ): Promise<ParsedJob> {
+  // Pre-filter inappropriate content
+  if (containsInappropriateContent(rawText)) {
+    console.warn("🚫 Taqiqlangan / 18+ / Spam so‘zlar aniqlandi, bekor qilindi:", rawText.slice(0, 50));
+    return {
+      isVacancy: false,
+      isAppropriate: false,
+      category: null,
+      title: null,
+      description: null,
+      district: null,
+      address: null,
+      startsAt: null,
+      endsAt: null,
+      payAmount: null,
+      openings: null,
+      confidence: 0,
+    };
+  }
+
   if (!config.geminiApiKey) {
     return smartRegexFallback(rawText);
   }
 
-  const prompt = `Sen JobTop tizimi uchun e’lon tahlilchisisan. Foydalanuvchi yozgan matnni tahlil qilib, FAQAT bitta toza JSON obyekt qaytar. Hech qanday Markdown yoki tushuntirish yozma.
+  const prompt = `Sen JobTop tizimi uchun e’lon tahlilchisi va XAVFSIZLIK FILTRIsisan. Foydalanuvchi yozgan matnni tahlil qilib, FAQAT bitta toza JSON obyekt qaytar. Hech qanday Markdown yoki tushuntirish yozma.
 
-Hozirgi sana-vaqt: ${new Date().toISOString()}. Vaqt zonasi: Asia/Tashkent (+05:00).
-Ruxsat etilgan kategoriyalar (category): "Kuryer", "Xizmat", "Yuk tashish", "Tozalash".
-Agar matn ish/vakansiya haqida bo‘lsa isVacancy=true qil, aks holda false.
-Matnda aniq bo‘lmagan maydonlarga null qo‘y, o‘zingdan to‘qima.
-Sana-vaqtlar ISO 8601 formatida bo‘lsin.
-payAmount butun son (so‘mda), openings butun son bo‘lsin.
+QAT'IY QOIDALAR:
+1. Agar e'lon 18+, intim, massaj, tungi klub, qimor/stavka (1xbet), moliyaviy piramida, noqonuniy yoki shubhali bo'lsa -> "isAppropriate": false va "isVacancy": false qilib qaytar.
+2. Agar matn haqiqiy halol kunlik/soatbay ish (yuk tashish, tozalash, kuryer, usta, yordamchi) bo'lsa -> "isAppropriate": true va "isVacancy": true qil.
+3. Ruxsat etilgan kategoriyalar (category): "Kuryer", "Xizmat", "Yuk tashish", "Tozalash".
 
 Kutilgan JSON sxemasi:
 {
-  "isVacancy": true,
+  "isVacancy": boolean,
+  "isAppropriate": boolean,
   "category": "Kuryer" | "Xizmat" | "Yuk tashish" | "Tozalash" | null,
   "title": string | null,
   "description": string | null,
@@ -137,7 +215,6 @@ ${rawText}`;
 
   let lastError: any = null;
 
-  // Try models in sequence with fallback
   for (const model of MODELS_TO_TRY) {
     try {
       const response = await fetch(
@@ -158,10 +235,8 @@ ${rawText}`;
       );
 
       if (!response.ok) {
-        const errText = await response.text();
-        console.warn(`Gemini model ${model} returned ${response.status}: ${errText}`);
         lastError = new Error(`${model} (${response.status})`);
-        continue; // Try next fallback model
+        continue;
       }
 
       const result = (await response.json()) as {
@@ -171,12 +246,31 @@ ${rawText}`;
       if (!jsonStr) continue;
 
       const data = JSON.parse(jsonStr);
+
+      if (data.isAppropriate === false || data.isVacancy === false) {
+        return {
+          isVacancy: false,
+          isAppropriate: false,
+          category: null,
+          title: null,
+          description: null,
+          district: null,
+          address: null,
+          startsAt: null,
+          endsAt: null,
+          payAmount: null,
+          openings: null,
+          confidence: 0,
+        };
+      }
+
       const category = JOB_CATEGORIES.includes(data.category)
         ? data.category
         : null;
 
       return {
-        isVacancy: data.isVacancy === true,
+        isVacancy: true,
+        isAppropriate: true,
         category,
         title: data.title ? String(data.title).slice(0, 140) : null,
         description: data.description ? String(data.description).slice(0, 2000) : null,
@@ -196,11 +290,8 @@ ${rawText}`;
       };
     } catch (err) {
       lastError = err;
-      console.warn(`Gemini model ${model} failed, trying next...`, err);
     }
   }
 
-  // If all AI models fail (e.g. 503 high load or connection timeout), use smart regex fallback!
-  console.warn("All Gemini models failed or busy. Using smart regex fallback.", lastError);
   return smartRegexFallback(rawText);
 }
