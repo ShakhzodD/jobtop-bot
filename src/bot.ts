@@ -1,3 +1,4 @@
+import { startDailyReportCron } from "./services/report.service.js";
 import { feedbackConversation } from "./conversations/feedback.conversation.js";
 import { startChannelScraperCron } from "./services/channel-scraper.service.js";
 import http from "node:http";
@@ -79,6 +80,7 @@ async function startBots() {
 
     console.log("🚀 JobTop Asosiy Bot va Moderatsiya Boti ishga tushirilmoqda...");
     startChannelScraperCron(3);
+    startDailyReportCron(modBot.api);
     const runner1 = run(bot);
     const runner2 = modBot !== bot ? run(modBot) : null;
 

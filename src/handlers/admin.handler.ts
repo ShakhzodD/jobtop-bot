@@ -95,25 +95,34 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
 
   // 4. "📊 Statistika" Button
   modBot.hears("📊 Statistika", async (ctx) => {
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const [
       { count: usersCount },
+      { count: newUsers24h },
       { count: publishedJobsCount },
+      { count: newJobs24h },
       { count: pendingJobsCount },
       { count: applicationsCount },
+      { count: newApps24h },
     ] = await Promise.all([
       supabase.from("users").select("*", { count: "exact", head: true }),
+      supabase.from("users").select("*", { count: "exact", head: true }).gte("created_at", oneDayAgo),
       supabase.from("jobs").select("*", { count: "exact", head: true }).eq("status", "published"),
+      supabase.from("jobs").select("*", { count: "exact", head: true }).gte("created_at", oneDayAgo),
       supabase.from("jobs").select("*", { count: "exact", head: true }).eq("status", "pending_moderation"),
       supabase.from("applications").select("*", { count: "exact", head: true }),
+      supabase.from("applications").select("*", { count: "exact", head: true }).gte("created_at", oneDayAgo),
     ]);
 
     const statsText = [
-      "📊 <b>JobTop Tizim Statistikasi:</b>",
+      "📊 <b>JobTop Jonli Tizim Statistikasi:</b>",
       "",
-      `👥 <b>Foydalanuvchilar:</b> ${usersCount ?? 0} ta`,
-      `🟢 <b>Faol e’lonlar:</b> ${publishedJobsCount ?? 0} ta`,
-      `⏳ <b>Moderatsiyada:</b> ${pendingJobsCount ?? 0} ta`,
-      `📄 <b>Jami arizalar:</b> ${applicationsCount ?? 0} ta`,
+      `👥 <b>Foydalanuvchilar:</b> ${usersCount ?? 0} ta <i>(+ ${newUsers24h ?? 0} ta so‘nggi 24 soatda)</i>`,
+      `🟢 <b>Faol e’lonlar:</b> ${publishedJobsCount ?? 0} ta <i>(+ ${newJobs24h ?? 0} ta yangi)</i>`,
+      `⏳ <b>Kutilayotgan moderatsiya:</b> ${pendingJobsCount ?? 0} ta`,
+      `📄 <b>Jami arizalar:</b> ${applicationsCount ?? 0} ta <i>(+ ${newApps24h ?? 0} ta so‘nggi 24 soatda)</i>`,
+      "",
+      "🟢 <i>Server va barcha kanallar avtomatik monitoringi faol!</i>",
     ].join("\n");
 
     await ctx.reply(statsText, {
