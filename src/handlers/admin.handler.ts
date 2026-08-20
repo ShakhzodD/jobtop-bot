@@ -3,12 +3,9 @@ function renderAdminUserCard(user: any, index: number, total: number) {
   const isWorker = user.active_role === "worker";
   const roleLabel = isWorker ? "👷 Ishchi" : "💼 Ish beruvchi";
   
-  let tgLink = "";
-  if (user.telegram_username) {
-    tgLink = `<a href="https://t.me/${user.telegram_username}">@${user.telegram_username}</a>`;
-  } else {
-    tgLink = `<a href="tg://user?id=${user.telegram_id}">👤 ${user.full_name} (Lichkaga o‘tish)</a>`;
-  }
+  const tgLink = user.telegram_username
+    ? `<a href="https://t.me/${user.telegram_username}">@${user.telegram_username}</a>`
+    : "<i>Mavjud emas</i>";
 
   // Format phone nicely
   let formattedPhone = user.phone || "Kiritilmagan";
@@ -114,14 +111,6 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
     const keyboard = new InlineKeyboard();
     if (user.telegram_username) {
       keyboard.url("💬 Telegramdan yozish", `https://t.me/${user.telegram_username}`).row();
-    } else if (user.phone) {
-      const cleanP = user.phone.replace(/\D/g, "");
-      const fullP = cleanP.startsWith("998") ? cleanP : "998" + cleanP;
-      keyboard.url("💬 Telegramdan yozish", `https://t.me/+${fullP}`).row();
-    } else if (user.phone) {
-      const cleanP = user.phone.replace(/\D/g, "");
-      const fullP = cleanP.startsWith("998") ? cleanP : "998" + cleanP;
-      keyboard.url("💬 Telegramdan yozish", `https://t.me/+${fullP}`).row();
     }
 
     // Pagination
