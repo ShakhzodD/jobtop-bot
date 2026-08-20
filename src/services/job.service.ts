@@ -45,7 +45,8 @@ export async function getPublishedJobs(options: {
       count: "exact",
     })
     .eq("status", "published")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: true });
 
   if (options.category) {
     query = query.eq("category", options.category);
