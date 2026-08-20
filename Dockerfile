@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 WORKDIR /app
 
@@ -12,6 +12,6 @@ COPY src/ ./src/
 RUN npm run build
 
 ENV NODE_ENV=production
-EXPOSE 10000
+EXPOSE 3000
 
 CMD ["node", "dist/bot.js"]
