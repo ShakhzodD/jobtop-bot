@@ -76,10 +76,6 @@ export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
     ].join("\n");
 
     const keyboard = new InlineKeyboard()
-      .url("🔵 Click orqali to‘lash (Avtomat)", getClickPaymentUrl(plan.price))
-      .row()
-      .url("🟢 Payme orqali to‘lash", getPaymePaymentUrl())
-      .row()
       .text("📸 To‘lov chekini yuborish", `emp:upload_receipt:${jobId}:${planId}`)
       .row()
       .text("🔙 Ortga", `emp:boost_menu:${jobId}`);

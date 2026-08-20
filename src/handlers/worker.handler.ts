@@ -145,10 +145,6 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     ].join("\n");
 
     const keyboard = new InlineKeyboard()
-      .url("🔵 Click orqali to‘lash (Avtomat)", getClickPaymentUrl(plan.price))
-      .row()
-      .url("🟢 Payme orqali to‘lash", getPaymePaymentUrl())
-      .row()
       .text("📸 To‘lov chekini yuborish", `worker:upload_receipt:${planId}`)
       .row()
       .text("🔙 Tariflarga qaytish", "worker:buy_pro");
