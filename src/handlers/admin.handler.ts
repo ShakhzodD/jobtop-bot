@@ -3,8 +3,8 @@ function renderAdminUserCard(user: any, index: number, total: number) {
   const isWorker = user.active_role === "worker";
   const roleLabel = isWorker ? "👷 Ishchi" : "💼 Ish beruvchi";
   const tgLink = user.telegram_username
-    ? `@${user.telegram_username}`
-    : `<a href="tg://user?id=${user.telegram_id}">${user.full_name}</a>`;
+    ? `<a href="https://t.me/${user.telegram_username}">@${user.telegram_username}</a>`
+    : `<a href="tg://user?id=${user.telegram_id}">Profilga o‘tish</a>`;
 
   const regDate = new Date(user.created_at).toLocaleDateString("uz-UZ", {
     timeZone: "Asia/Tashkent",
