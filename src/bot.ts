@@ -1,3 +1,4 @@
+import { startChannelScraperCron } from "./services/channel-scraper.service.js";
 import http from "node:http";
 
 // Global uncaught exception protection
@@ -75,6 +76,7 @@ async function startBots() {
     }
 
     console.log("🚀 JobTop Asosiy Bot va Moderatsiya Boti ishga tushirilmoqda...");
+    startChannelScraperCron(15);
     const runner1 = run(bot);
     const runner2 = modBot !== bot ? run(modBot) : null;
 
