@@ -39,12 +39,14 @@ export async function getPublishedJobs(options: {
   limit?: number;
   offset?: number;
 }): Promise<{ jobs: DBJob[]; total: number }> {
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   let query = supabase
     .from("jobs")
     .select("*, employer:users!employer_id(full_name, phone, telegram_username)", {
       count: "exact",
     })
     .eq("status", "published")
+    .gte("created_at", threeDaysAgo)
     .order("created_at", { ascending: false })
     .order("id", { ascending: true });
 

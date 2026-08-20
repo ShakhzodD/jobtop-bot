@@ -10,6 +10,53 @@ import { roleSelectionKeyboard, contactRequestKeyboard } from "../keyboards/auth
 import { getWorkerMainMenu, getEmployerMainMenu } from "../keyboards/main-menu.js";
 
 export function registerStartHandlers(bot: Bot<MyContext>) {
+  // Help & Onboarding Guide
+  bot.command("help", async (ctx) => {
+    const helpText = [
+      "ℹ️ <b>JobTop — Foydalanish bo‘yicha qo‘llanma</b>",
+      "",
+      "👷 <b>Ishchilar uchun:</b>",
+      "1. <b>🔍 Ishlarni ko‘rish</b> — Toshkentdagi barcha yangi bir kunlik va soatbay ishlarni ko‘ring.",
+      "2. <b>✋ Ariza yuborish</b> — Yoqqan ishga bitta yoki sheriklaringiz bilan 2-4 kishilik brigada bo‘lib ariza topshiring.",
+      "3. <b>👤 Profilni to‘ldirish</b> — Reytingingiz va tajribangiz qancha yuqori bo‘lsa, sizni shuncha tez ishga tanlashadi.",
+      "",
+      "💼 <b>Ish beruvchilar uchun:</b>",
+      "1. <b>➕ Yangi e’lon berish</b> — Qanday ishchi kerakligini erkin matn yoki ovoz bilan yozing, AI uni darhol e’longa aylantiradi.",
+      "2. <b>📋 Nomzodlarni ko‘rish</b> — Kelgan arizalarni tekshiring, eng yaxshi ustalarni tanlang va to‘g‘ridan-to‘g‘ri telefon qiling.",
+      "",
+      "🛡 <b>Xavfsizlik qoidalari:</b>",
+      "• Ish boshlanmasidan oldin <b>hech kimga oldindan pul o‘tkazmang!</b>",
+      "• Ish haqini faqat ish to‘liq bajarilgach to‘lang.",
+      "",
+      "Savol yoki muammo bo‘lsa: <b>✍️ Murojaat va takliflar</b> bo‘limiga yozing!",
+    ].join("\n");
+
+    await ctx.reply(helpText, { parse_mode: "HTML" });
+  });
+
+  bot.hears(["❓ Qanday ishlaydi?", "ℹ️ Yordam", "/help"], async (ctx) => {
+    const helpText = [
+      "ℹ️ <b>JobTop — Foydalanish bo‘yicha qo‘llanma</b>",
+      "",
+      "👷 <b>Ishchilar uchun:</b>",
+      "1. <b>🔍 Ishlarni ko‘rish</b> — Toshkentdagi barcha yangi bir kunlik va soatbay ishlarni ko‘ring.",
+      "2. <b>✋ Ariza yuborish</b> — Yoqqan ishga bitta yoki sheriklaringiz bilan 2-4 kishilik brigada bo‘lib ariza topshiring.",
+      "3. <b>👤 Profilni to‘ldirish</b> — Reytingingiz va tajribangiz qancha yuqori bo‘lsa, sizni shuncha tez ishga tanlashadi.",
+      "",
+      "💼 <b>Ish beruvchilar uchun:</b>",
+      "1. <b>➕ Yangi e’lon berish</b> — Qanday ishchi kerakligini erkin matn yoki ovoz bilan yozing, AI uni darhol e’longa aylantiradi.",
+      "2. <b>📋 Nomzodlarni ko‘rish</b> — Kelgan arizalarni tekshiring, eng yaxshi ustalarni tanlang va to‘g‘ridan-to‘g‘ri telefon qiling.",
+      "",
+      "🛡 <b>Xavfsizlik qoidalari:</b>",
+      "• Ish boshlanmasidan oldin <b>hech kimga oldindan pul o‘tkazmang!</b>",
+      "• Ish haqini faqat ish to‘liq bajarilgach to‘lang.",
+      "",
+      "Savol yoki muammo bo‘lsa: <b>✍️ Murojaat va takliflar</b> bo‘limiga yozing!",
+    ].join("\n");
+
+    await ctx.reply(helpText, { parse_mode: "HTML" });
+  });
+
   // Referral & Invite Friends
   bot.hears(["👥 Sherikni taklif qilish", "👥 Do‘stlarni taklif qilish"], async (ctx) => {
     const telegramId = ctx.from?.id;

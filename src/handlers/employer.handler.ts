@@ -16,6 +16,21 @@ import {
 import { createReview, getUserRating } from "../services/review.service.js";
 
 export function registerEmployerHandlers(mainBot: Bot<MyContext>) {
+  // Cancel / Stop Job by Employer
+  mainBot.callbackQuery(/^emp:cancel_job:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const jobId = ctx.match[1];
+    const job = await getJobById(jobId);
+    if (!job) return;
+
+    await updateJobStatus(jobId, "cancelled");
+
+    await ctx.editMessageText(
+      `🛑 <b>"${job.title}" e’loni to‘xtatildi!</b>\n\nUshbu e’lon umumiy lentadan olindi va yangi ishchilar endi unga ariza yubora olmaydi.`,
+      { parse_mode: "HTML" }
+    );
+  });
+
   // Employer Job Boost Menu
   mainBot.callbackQuery(/^emp:boost_menu:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
