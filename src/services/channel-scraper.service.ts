@@ -13,6 +13,16 @@ const CLOSED_JOB_KEYWORDS = [
   "yigitlar topildi",
   "odam kere emas",
   "odam kerakmas",
+  "@toldi",
+  "to'ldi",
+  "toldi",
+  "to‘ldi",
+  "tòldi",
+  "toʻldi",
+  "tõldi",
+  "band qilindi",
+  "ish bo'ldi",
+  "ish boldi",
 ];
 
 function isJobClosedOrFilled(text: string): boolean {
