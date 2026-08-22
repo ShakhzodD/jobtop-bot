@@ -1,3 +1,5 @@
+import { getJobById } from "../services/job.service.js";
+import { extractContactInfo } from "./worker.handler.js";
 import { Bot, InlineKeyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import {
@@ -95,6 +97,62 @@ export function registerStartHandlers(bot: Bot<MyContext>) {
   bot.command("start", async (ctx) => {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
+
+    const payload = ctx.match?.trim();
+
+    // Check if user came from @jobtopuzz channel deeplink: /start job_<id>
+    if (payload && payload.startsWith("job_")) {
+      const jobId = payload.replace("job_", "");
+      const job = await getJobById(jobId);
+      if (job && job.status === "published") {
+        const contacts = extractContactInfo(job.description);
+        let contactLine = "";
+        if (contacts.phone && contacts.telegram) {
+          contactLine = `📞 <b>Aloqa:</b> <code>${contacts.phone}</code> (${contacts.telegram})`;
+        } else if (contacts.phone) {
+          contactLine = `📞 <b>Aloqa / Tel:</b> <code>${contacts.phone}</code>`;
+        } else if (contacts.telegram) {
+          contactLine = `💬 <b>Aloqa (Telegram):</b> ${contacts.telegram}`;
+        }
+
+        const cleanDescription = job.description
+          .replace(/🔗\s*Manba:[^\n]+/gi, "")
+          .replace(/🌐\s*Manba:[^\n]+/gi, "")
+          .trim();
+
+        const cardText = [
+          `📋 <b>${job.title}</b>`,
+          "",
+          `📂 <b>Kategoriya:</b> ${job.category}`,
+          `📍 <b>Tuman:</b> ${job.district}`,
+          `🏢 <b>Manzil:</b> ${job.address}`,
+          `💰 <b>Ish haqi:</b> ${job.pay_amount.toLocaleString()} so‘m`,
+          `👥 <b>Bo‘sh o‘rinlar:</b> ${job.openings} ta`,
+          contactLine,
+          `🕒 <b>Boshlanish vaqti:</b> ${new Date(job.starts_at).toLocaleString("uz-UZ", {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`,
+          "",
+          `📝 <b>Tavsif:</b>\n${cleanDescription}`,
+        ].filter(Boolean).join("\n");
+
+        const kb = new InlineKeyboard();
+        if (contacts.telegram) {
+          kb.url("💬 Telegramdan yozish", "https://t.me/" + contacts.telegram.replace("@", "")).row();
+        }
+        kb.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
+        kb.text("🔍 Barcha ishlarni ko‘rish", "worker:feed:all:0");
+
+        await ctx.reply(cardText, {
+          parse_mode: "HTML",
+          reply_markup: kb,
+        });
+        return;
+      }
+    }
 
     const user = await getUserByTelegramId(telegramId);
 

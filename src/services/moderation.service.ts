@@ -1,3 +1,4 @@
+import { publishJobToPublicChannel } from "./channel-publisher.service.js";
 import { Api, InlineKeyboard } from "grammy";
 import { supabase } from "../core/supabase.js";
 import { config } from "../config/env.js";
@@ -82,6 +83,10 @@ export async function broadcastJobToMatchingWorkers(
   mainBotApi: Api,
   job: DBJob
 ) {
+  // 1. Automatically post to official public channel @jobtopuzz
+  publishJobToPublicChannel(mainBotApi, job).catch((err) =>
+    console.error("Error auto-publishing to public channel:", err)
+  );
   const { data: workers } = await supabase
     .from("users")
     .select("telegram_id, worker_categories")
