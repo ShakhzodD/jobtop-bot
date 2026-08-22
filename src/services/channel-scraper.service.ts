@@ -1,4 +1,26 @@
 
+const CLOSED_JOB_KEYWORDS = [
+  "odam bo'ldi",
+  "odam boldi",
+  "odam bo‘ldi",
+  "odam topildi",
+  "odam olindi",
+  "ish yopildi",
+  "odam to'ldi",
+  "odam toldi",
+  "odam to‘ldi",
+  "bolla topildi",
+  "yigitlar topildi",
+  "odam kere emas",
+  "odam kerakmas",
+];
+
+function isJobClosedOrFilled(text: string): boolean {
+  const lower = text.toLowerCase();
+  return CLOSED_JOB_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+
 function extractContactFingerprints(text: string): { phoneDigits?: string; telegramHandle?: string } {
   const phoneRegex = /(?:\+?998[\s-]*)?(?:90|91|93|94|95|97|98|99|88|33|77|20)[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}|\b\d{2}[\s-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}\b/;
   const phoneMatch = text.match(phoneRegex);
