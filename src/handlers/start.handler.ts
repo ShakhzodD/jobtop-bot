@@ -7,6 +7,7 @@ import {
   upsertUser,
   setActiveRole,
   getProfileCompletionStatus,
+  recordUserTrafficSource,
 } from "../services/user.service.js";
 import { roleSelectionKeyboard, contactRequestKeyboard } from "../keyboards/auth.js";
 import { getWorkerMainMenu, getEmployerMainMenu } from "../keyboards/main-menu.js";
@@ -104,7 +105,22 @@ export function registerStartHandlers(bot: Bot<MyContext>) {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
-    const payload = ctx.match?.trim();
+    const payload = ctx.match?.trim() || "";
+
+    let trafficSource = "organic_search";
+    let referredBy: number | null = null;
+
+    if (payload.startsWith("src_")) {
+      trafficSource = payload.replace("src_", "");
+    } else if (payload.startsWith("ref_")) {
+      trafficSource = "referral";
+      referredBy = parseInt(payload.replace("ref_", ""), 10) || null;
+    } else if (payload.startsWith("job_")) {
+      trafficSource = "channel_job_button";
+    }
+
+    // Record acquisition source
+    recordUserTrafficSource(telegramId, trafficSource, referredBy).catch(() => {});
 
     // Check if user came from @jobtopuzz channel deeplink: /start job_<id>
     if (payload && payload.startsWith("job_")) {

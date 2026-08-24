@@ -1,3 +1,82 @@
+
+export async function recordUserTrafficSource(
+  telegramId: number,
+  source: string,
+  referredBy?: number | null
+): Promise<void> {
+  try {
+    const user = await getUserByTelegramId(telegramId);
+    if (!user) return;
+
+    const currentBotState = (user as any)?.bot_state || {};
+    if (!currentBotState.utm_source) {
+      await supabase
+        .from("users")
+        .update({
+          bot_state: {
+            ...currentBotState,
+            utm_source: source,
+            referred_by: referredBy || currentBotState.referred_by || null,
+            source_recorded_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", user.id);
+    }
+  } catch (err) {
+    console.error("Error recording user traffic source:", err);
+  }
+}
+
+export async function getTrafficSourcesAnalytics(): Promise<{
+  breakdown: Array<{ name: string; count: number; percent: number }>;
+  total: number;
+}> {
+  const { data: users, error } = await supabase
+    .from("users")
+    .select("bot_state");
+
+  if (error || !users) return { breakdown: [], total: 0 };
+
+  const counts: Record<string, number> = {
+    "📸 Instagram": 0,
+    "📢 @jobtopuzz kanali": 0,
+    "🎓 Talabalar guruhlari": 0,
+    "🎵 TikTok": 0,
+    "👥 Do‘stlar taklifi (Referral)": 0,
+    "🔍 Telegram qidiruv (Organik)": 0,
+  };
+
+  let total = users.length;
+
+  for (const u of users) {
+    const src = String((u as any)?.bot_state?.utm_source || "organic_search").toLowerCase();
+    if (src.includes("insta")) {
+      counts["📸 Instagram"]++;
+    } else if (src.includes("tik")) {
+      counts["🎵 TikTok"]++;
+    } else if (src.includes("chan") || src.includes("job_")) {
+      counts["📢 @jobtopuzz kanali"]++;
+    } else if (src.includes("stud") || src.includes("tatu") || src.includes("group")) {
+      counts["🎓 Talabalar guruhlari"]++;
+    } else if (src.includes("ref")) {
+      counts["👥 Do‘stlar taklifi (Referral)"]++;
+    } else {
+      counts["🔍 Telegram qidiruv (Organik)"]++;
+    }
+  }
+
+  const breakdown = Object.entries(counts)
+    .filter(([_, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({
+      name,
+      count,
+      percent: total > 0 ? Math.round((count / total) * 100) : 0,
+    }));
+
+  return { breakdown, total };
+}
+
 import { supabase } from "../core/supabase.js";
 import { UserRole } from "../types/context.js";
 

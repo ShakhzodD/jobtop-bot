@@ -58,6 +58,7 @@ import {
 import { importTelegramChannelPost } from "../services/import.service.js";
 import { getJobById, getPendingModerationJobs, DBJob } from "../services/job.service.js";
 import { supabase } from "../core/supabase.js";
+import { getTrafficSourcesAnalytics } from "../services/user.service.js";
 
 export const moderationMenuKeyboard = new Keyboard()
   .text("📋 Moderatsiyadagi e’lonlar")
@@ -363,6 +364,11 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       ? Math.round(((selectedAppsCount ?? 0) / applicationsCount!) * 100)
       : 0;
 
+    const trafficStats = await getTrafficSourcesAnalytics();
+    const trafficLines = trafficStats.breakdown.length > 0
+      ? trafficStats.breakdown.map((item: any) => `• ${item.name}: <b>${item.count} ta</b> (${item.percent}%)`).join("\n")
+      : "• Ma’lumotlar to‘planmoqda...";
+
     const statsText = [
       "📊 <b>JobTop Tizim va Faollik Tahlili (Analytics):</b>",
       "",
@@ -371,6 +377,9 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       `• 👷 Ishchilar: <b>${workersCount ?? 0} ta</b>`,
       `• 💼 Ish beruvchilar: <b>${employersCount ?? 0} ta</b>`,
       `• ⚡️ So‘nggi 24 soatda qo‘shilgan: <b>+${newUsers24h ?? 0} ta</b>`,
+      "",
+      "📍 <b>Foydalanuvchilar Kelish Manbalari (Traffic Sources):</b>",
+      trafficLines,
       "",
       "💼 <b>E’lonlar va Bozor Holati:</b>",
       `• Hozir faol e’lonlar: <b>${publishedJobsCount ?? 0} ta</b>`,
@@ -384,7 +393,7 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       `• ✅ Ishga qabul qilinganlar: <b>${selectedAppsCount ?? 0} ta</b>`,
       `• 📈 Ishga joylashish ko‘rsatkichi: <b>${hiringRate}%</b>`,
       "",
-      "🟢 <i>8 ta kanal avtomatik monitoringi va 24/7 server faol!</i>",
+      "🟢 <i>23 ta kanal avtomatik monitoringi va 24/7 server faol!</i>",
     ].filter(Boolean).join("\n");
 
     await ctx.reply(statsText, {
