@@ -98,13 +98,28 @@ import { modBot } from "../core/bots.js";
 import { config } from "../config/env.js";
 
 const DEFAULT_CHANNELS = [
+  "kunlikishlaruz24",
+  "talabalar_uchun_ishlar",
+  "toshkentda_kunlik_ishlar",
+  "toshkent_ish_elonlari",
+  "kunlik_ishlar_rasmiy",
+  "talabalar_uchun_ish",
+  "kunlik_ishlar_toshkent",
+  "talabalar_ish_bor",
+  "toshkentda_ish_bor",
+  "toshkent_ishlari",
+  "toshkentda_ish",
+  "toshkent_ish_bozor",
+  "ish_bor_toshkentda",
+  "talabalar_uchun_vakansiya",
+  "toshkent_kunlik_ish",
+  "kunlik_ishlar_toshkent_24",
+  "rabota_v_tashkente",
   "Kunlik_ishlar_kunbayToshkentda",
   "kunlik_ishlar_toshkentuz",
-  "kunlikishlaruz24",
   "kunlik_ish_uz",
   "kunlik_ish_toshkent",
   "toshkent_kunlik_ishlar",
-  "talabalar_uchun_ishlar",
   "mardikor_bozor_toshkent",
 ];
 
