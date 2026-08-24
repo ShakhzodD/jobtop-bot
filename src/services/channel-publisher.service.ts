@@ -1,5 +1,5 @@
 import { Api, InlineKeyboard } from "grammy";
-import { DBJob } from "./job.service.js";
+import { DBJob, detectJobGender } from "./job.service.js";
 
 export const PUBLIC_CHANNEL_USERNAME = "@jobtopuzz";
 
@@ -27,10 +27,22 @@ export async function publishJobToPublicChannel(api: Api, job: DBJob): Promise<n
       minute: "2-digit",
     });
 
+    const gender = detectJobGender(job);
+    let genderTag = "#Barchaga";
+    let genderLabel = "👥 Barchaga (Erkak va Ayol)";
+    if (gender === "male") {
+      genderTag = "#ErkaklarUchun #YigitlarUchun";
+      genderLabel = "👨 Erkaklar / Yigitlar";
+    } else if (gender === "female") {
+      genderTag = "#AyollarUchun #QizlarUchun";
+      genderLabel = "👩 Ayollar / Qizlar";
+    }
+
     const lines = [
       `💼 <b>${job.title}</b>`,
       "",
       `📂 <b>Kategoriya:</b> ${job.category}`,
+      `👤 <b>Kimlar uchun:</b> ${genderLabel}`,
       `📍 <b>Tuman:</b> ${job.district}`,
       `🏢 <b>Manzil:</b> ${job.address}`,
       `💰 <b>Ish haqi:</b> <b>${job.pay_amount.toLocaleString()} so‘m</b>`,
@@ -43,7 +55,7 @@ export async function publishJobToPublicChannel(api: Api, job: DBJob): Promise<n
       `🤖 <b>Bog‘lanish va to‘liq ma’lumot olish uchun:</b>`,
       `👇 Pastdagi tugmani bosing:`,
       "",
-      `${catTag} ${districtTag} #KunlikIsh #Toshkent #JobTop`,
+      `${catTag} ${districtTag} ${genderTag} #KunlikIsh #Toshkent #JobTop`,
     ];
 
     const keyboard = new InlineKeyboard().url(

@@ -34,7 +34,7 @@ import {
   getUserByTelegramId,
   getProfileCompletionStatus,
 } from "../services/user.service.js";
-import { getPublishedJobs, getJobById, DBJob } from "../services/job.service.js";
+import { getPublishedJobs, getJobById, DBJob, detectJobGender } from "../services/job.service.js";
 import {
   applyForJob,
   getWorkerApplications,
@@ -63,10 +63,21 @@ function renderJobCard(job: DBJob, index: number, total: number) {
     .replace(/🌐\s*Manba:[^\n]+/gi, "")
     .trim();
 
+  const gender = detectJobGender(job);
+  let genderLine = "";
+  if (gender === "male") {
+    genderLine = "👤 <b>Kimlar uchun:</b> 👨 Erkaklar / Yigitlar";
+  } else if (gender === "female") {
+    genderLine = "👤 <b>Kimlar uchun:</b> 👩 Ayollar / Qizlar";
+  } else {
+    genderLine = "👤 <b>Kimlar uchun:</b> 👥 Barchaga (Erkak va Ayol)";
+  }
+
   const lines = [
     `📋 <b>${job.title}</b> (${index + 1}/${total})`,
     "",
     `📂 <b>Kategoriya:</b> ${job.category}`,
+    genderLine,
     `📍 <b>Tuman:</b> ${job.district}`,
     `🏢 <b>Manzil:</b> ${job.address}`,
     `💰 <b>Ish haqi:</b> ${job.pay_amount.toLocaleString()} so‘m`,
@@ -277,14 +288,16 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   mainBot.hears("🔍 Ishlarni ko‘rish", async (ctx) => {
     await ctx.replyWithChatAction("typing").catch(() => {});
     const keyboard = new InlineKeyboard();
-    keyboard.text("🌐 Barcha kategoriyalar", "worker:feed:all:0").row();
+    keyboard.text("🌐 Barcha ishlar", "worker:feed:all:0").row();
+    keyboard.text("👨 Erkaklar uchun", "worker:feed:gender_male:0")
+            .text("👩 Ayollar uchun", "worker:feed:gender_female:0").row();
 
     JOB_CATEGORIES.forEach((cat, idx) => {
       keyboard.text(cat, `worker:feed:${cat}:0`);
       if (idx % 2 === 1) keyboard.row();
     });
 
-    await ctx.reply("Qaysi sohadagi ishlarni ko‘rmoqchisiz? Tanlang 👇", {
+    await ctx.reply("Qaysi yo‘nalishdagi ishlarni ko‘rmoqchisiz? Tanlang 👇", {
       reply_markup: keyboard,
     });
   });
@@ -294,10 +307,23 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     await ctx.answerCallbackQuery().catch(() => {});
     const categoryParam = ctx.match[1];
     const offset = parseInt(ctx.match[2], 10);
-    const category = categoryParam === "all" ? undefined : categoryParam;
+    
+    let category: string | undefined = undefined;
+    let gender: "male" | "female" | "all" | undefined = undefined;
+
+    if (categoryParam === "all") {
+      category = undefined;
+    } else if (categoryParam === "gender_male") {
+      gender = "male";
+    } else if (categoryParam === "gender_female") {
+      gender = "female";
+    } else {
+      category = categoryParam;
+    }
 
     const { jobs, total } = await getPublishedJobs({
       category,
+      gender,
       offset,
       limit: 1,
     });
@@ -362,14 +388,16 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   mainBot.callbackQuery("worker:back_categories", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const keyboard = new InlineKeyboard();
-    keyboard.text("🌐 Barcha kategoriyalar", "worker:feed:all:0").row();
+    keyboard.text("🌐 Barcha ishlar", "worker:feed:all:0").row();
+    keyboard.text("👨 Erkaklar uchun", "worker:feed:gender_male:0")
+            .text("👩 Ayollar uchun", "worker:feed:gender_female:0").row();
 
     JOB_CATEGORIES.forEach((cat, idx) => {
       keyboard.text(cat, `worker:feed:${cat}:0`);
       if (idx % 2 === 1) keyboard.row();
     });
 
-    await ctx.editMessageText("Qaysi sohadagi ishlarni ko‘rmoqchisiz? Tanlang 👇", {
+    await ctx.editMessageText("Qaysi yo‘nalishdagi ishlarni ko‘rmoqchisiz? Tanlang 👇", {
       reply_markup: keyboard,
     });
   });

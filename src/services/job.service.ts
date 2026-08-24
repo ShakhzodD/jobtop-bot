@@ -1,3 +1,39 @@
+
+export type JobGender = "male" | "female" | "any";
+
+export function detectJobGender(job: { title: string; description: string; category?: string }): JobGender {
+  const text = ((job.title || "") + " " + (job.description || "")).toLowerCase();
+  
+  const isFemale =
+    text.includes("ayol") ||
+    text.includes("qizlar") ||
+    text.includes("qiz bola") ||
+    text.includes("ayollar") ||
+    text.includes("uborshitsa") ||
+    text.includes("idish yuv") ||
+    text.includes("tikuvchi") ||
+    text.includes("qiz kere") ||
+    text.includes("ayol kishi");
+
+  const isMale =
+    text.includes("yigit") ||
+    text.includes("o'g'il bola") ||
+    text.includes("ogil bola") ||
+    text.includes("o‘g‘il bola") ||
+    text.includes("erkak") ||
+    text.includes("gruzchik") ||
+    text.includes("mebel ko'chirish") ||
+    text.includes("fura tushirish") ||
+    text.includes("stroy") ||
+    text.includes("sement") ||
+    text.includes("og'ir yuk") ||
+    text.includes("usta yordamchisi");
+
+  if (isFemale && !isMale) return "female";
+  if (isMale && !isFemale) return "male";
+  return "any";
+}
+
 import { supabase } from "../core/supabase.js";
 import { JobCategory } from "../core/gemini.js";
 
@@ -36,6 +72,7 @@ export interface DBJob {
 export async function getPublishedJobs(options: {
   category?: string;
   district?: string;
+  gender?: "male" | "female" | "all";
   limit?: number;
   offset?: number;
 }): Promise<{ jobs: DBJob[]; total: number }> {
@@ -50,7 +87,7 @@ export async function getPublishedJobs(options: {
     .order("created_at", { ascending: false })
     .order("id", { ascending: true });
 
-  if (options.category) {
+  if (options.category && options.category !== "all" && !options.category.startsWith("gender_")) {
     query = query.eq("category", options.category);
   }
   if (options.district) {
@@ -59,8 +96,24 @@ export async function getPublishedJobs(options: {
 
   const limit = options.limit ?? 5;
   const offset = options.offset ?? 0;
-  query = query.range(offset, offset + limit - 1);
 
+  if (options.gender === "male" || options.gender === "female") {
+    // Fetch and filter by gender in memory
+    const { data: allJobs, error } = await query;
+    if (error || !allJobs) return { jobs: [], total: 0 };
+
+    const filtered = (allJobs as DBJob[]).filter((j) => {
+      const g = detectJobGender(j);
+      return g === options.gender || g === "any";
+    });
+
+    return {
+      jobs: filtered.slice(offset, offset + limit),
+      total: filtered.length,
+    };
+  }
+
+  query = query.range(offset, offset + limit - 1);
   const { data, count, error } = await query;
   if (error) {
     console.error("Error fetching published jobs:", error);
