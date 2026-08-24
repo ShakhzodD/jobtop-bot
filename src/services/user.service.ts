@@ -18,15 +18,17 @@ export interface DBUser {
 }
 
 export function getProfileCompletionStatus(user: DBUser) {
+  const gender = (user as any).bot_state?.gender;
   const fields = [
-    { name: "Telefon", value: Boolean(user.phone), weight: 25 },
-    { name: "Yashash tumani", value: Boolean(user.district), weight: 25 },
+    { name: "Telefon", value: Boolean(user.phone), weight: 20 },
+    { name: "Jinsi (Erkak/Ayol)", value: Boolean(gender), weight: 20 },
+    { name: "Yashash tumani", value: Boolean(user.district), weight: 20 },
     {
       name: "Ish tajribasi",
       value: user.experience_years !== null && user.experience_years !== undefined,
-      weight: 25,
+      weight: 20,
     },
-    { name: "O‘zingiz haqingizda ma’lumot", value: Boolean(user.about), weight: 25 },
+    { name: "O‘zingiz haqingizda ma’lumot", value: Boolean(user.about), weight: 20 },
   ];
 
   const percent = fields.reduce((acc, f) => acc + (f.value ? f.weight : 0), 0);
@@ -116,11 +118,36 @@ export async function updateWorkerProfile(
     about: string;
     worker_categories: string[];
     full_name: string;
+    gender: "male" | "female";
   }>
 ): Promise<void> {
+  const user = await getUserByTelegramId(telegramId);
+  const currentBotState = (user as any)?.bot_state || {};
+
+  const updateData: any = {
+    district: profile.district,
+    birth_date: profile.birth_date,
+    experience_years: profile.experience_years,
+    about: profile.about,
+    worker_categories: profile.worker_categories,
+    full_name: profile.full_name,
+  };
+
+  if (profile.gender) {
+    updateData.bot_state = {
+      ...currentBotState,
+      gender: profile.gender,
+    };
+  }
+
+  // Remove undefined fields
+  Object.keys(updateData).forEach(
+    (key) => updateData[key] === undefined && delete updateData[key]
+  );
+
   const { error } = await supabase
     .from("users")
-    .update(profile)
+    .update(updateData)
     .eq("telegram_id", telegramId);
 
   if (error) {

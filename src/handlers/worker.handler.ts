@@ -766,20 +766,26 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     const { percent, isComplete, missing } = getProfileCompletionStatus(user);
     const userRating = await getUserRating(user.id);
 
-    const totalBars = 4;
+    const totalBars = 5;
     const filledBars = Math.round((percent / 100) * totalBars);
     const barStr = "🟩".repeat(filledBars) + "⬜️".repeat(totalBars - filledBars);
+
+    const userGender = (user as any)?.bot_state?.gender;
+    let userGenderLabel = "Belgilanmagan";
+    if (userGender === "male") userGenderLabel = "👨 Erkak (Yigit)";
+    if (userGender === "female") userGenderLabel = "👩 Ayol (Qiz bola)";
 
     const profileText = [
       `👤 <b>Mening profilim:</b>`,
       "",
       `⭐️ <b>Reyting:</b> ${userRating.starsStr}`,
-            `📊 <b>Profil to‘liqligi:</b> [${barStr}] <b>${percent}%</b>`,
+      `📊 <b>Profil to‘liqligi:</b> [${barStr}] <b>${percent}%</b>`,
       !isComplete
         ? `⚠️ <i>To‘ldirilmagan: ${missing.join(", ")}</i>`
         : "✅ <i>Profilingiz to‘liq to‘ldirilgan!</i>",
       "",
       `📛 <b>Ism:</b> ${user.full_name}`,
+      `👤 <b>Jinsi:</b> ${userGenderLabel}`,
       `📱 <b>Telefon:</b> ${user.phone || "Kiritilmagan"}`,
       `📍 <b>Tuman:</b> ${user.district || "Kiritilmagan"}`,
       `💼 <b>Tajriba:</b> ${

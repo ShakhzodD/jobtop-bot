@@ -36,10 +36,47 @@ export async function editProfileConversation(
     return;
   }
 
-  // 2. District
+  // 2. Gender Selection
+  await ctx.reply(
+    "👤 <b>Jinsingizni tanlang:</b>\n\n<i>(Bu sizga faqat o‘zingizga mos bo‘lgan kunlik ishlarni yuborishimiz uchun kerak)</i>",
+    {
+      parse_mode: "HTML",
+      reply_markup: {
+        keyboard: [
+          [{ text: "👨 Erkak (Yigit)" }, { text: "👩 Ayol (Qiz bola)" }],
+          [{ text: "❌ Bekor qilish" }],
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      },
+    }
+  );
+
+  const genderMsg = await conversation.waitFor("message:text");
+  const genderText = genderMsg.message.text.trim();
+  if (genderText === "❌ Bekor qilish" || genderText === "/cancel") {
+    await ctx.reply("Tahrirlash bekor qilindi.", { reply_markup: getWorkerMainMenu() });
+    return;
+  }
+
+  let selectedGender: "male" | "female" = "male";
+  if (genderText.toLowerCase().includes("ayol") || genderText.toLowerCase().includes("qiz")) {
+    selectedGender = "female";
+  } else {
+    selectedGender = "male";
+  }
+
+  // 3. District
   await ctx.reply(
     "Yashash tumaningizni kiriting (Masalan: <i>Chilonzor, Yunusobod, Sergeli...</i>):",
-    { parse_mode: "HTML" }
+    {
+      parse_mode: "HTML",
+      reply_markup: {
+        keyboard: [[{ text: "❌ Bekor qilish" }]],
+        resize_keyboard: true,
+        one_time_keyboard: true,
+      },
+    }
   );
   const districtMsg = await conversation.waitFor("message:text");
   const district = districtMsg.message.text.trim();
@@ -112,6 +149,7 @@ export async function editProfileConversation(
   await conversation.external(() =>
     updateWorkerProfile(telegramId, {
       full_name: name,
+      gender: selectedGender,
       district,
       experience_years: experienceYears,
       worker_categories: selectedCategories,
@@ -119,9 +157,12 @@ export async function editProfileConversation(
     })
   );
 
+  const genderLabel = selectedGender === "female" ? "👩 Ayol (Qiz bola)" : "👨 Erkak (Yigit)";
+
   await ctx.reply(
     `✅ <b>Profilingiz muvaffaqiyatli yangilandi!</b>\n\n` +
       `📌 <b>Ism:</b> ${name}\n` +
+      `👤 <b>Jinsi:</b> ${genderLabel}\n` +
       `📍 <b>Tuman:</b> ${district}\n` +
       `💼 <b>Tajriba:</b> ${experienceYears} yil\n` +
       `📂 <b>Tanlangan sohalar:</b> ${selectedCategories.join(", ")}\n` +

@@ -2,7 +2,7 @@ import { publishJobToPublicChannel } from "./channel-publisher.service.js";
 import { Api, InlineKeyboard } from "grammy";
 import { supabase } from "../core/supabase.js";
 import { config } from "../config/env.js";
-import { DBJob, updateJobStatus } from "./job.service.js";
+import { DBJob, updateJobStatus, detectJobGender } from "./job.service.js";
 
 export async function moderateJob(
   jobId: string,
@@ -87,19 +87,33 @@ export async function broadcastJobToMatchingWorkers(
   publishJobToPublicChannel(mainBotApi, job).catch((err) =>
     console.error("Error auto-publishing to public channel:", err)
   );
+  const jobGender = detectJobGender(job);
+
   const { data: workers } = await supabase
     .from("users")
-    .select("telegram_id, worker_categories")
+    .select("telegram_id, worker_categories, bot_state")
     .not("telegram_id", "is", null);
 
   if (!workers || !workers.length) return;
 
-  const matchingWorkers = workers.filter((w) =>
-    !w.worker_categories ||
-    !Array.isArray(w.worker_categories) ||
-    w.worker_categories.length === 0 ||
-    w.worker_categories.includes(job.category)
-  );
+  const matchingWorkers = workers.filter((w) => {
+    // 1. Category check
+    const catMatch =
+      !w.worker_categories ||
+      !Array.isArray(w.worker_categories) ||
+      w.worker_categories.length === 0 ||
+      w.worker_categories.includes(job.category);
+    if (!catMatch) return false;
+
+    // 2. Gender targeted push check
+    const workerGender = (w as any)?.bot_state?.gender;
+    if (workerGender && jobGender !== "any") {
+      if (jobGender !== workerGender) {
+        return false; // Don't spam female jobs to male workers or male jobs to female workers!
+      }
+    }
+    return true;
+  });
   console.log(`📢 "${job.title}" e’loni uchun ${matchingWorkers.length} ta mos ishchiga xabar yuborilmoqda...`);
 
   const text = [
