@@ -1,3 +1,20 @@
+export const TASHKENT_DISTRICTS = [
+  "Chilonzor",
+  "Yunusobod",
+  "Mirzo Ulug‘bek",
+  "Mirobod",
+  "Shayxontohur",
+  "Yakkasaroy",
+  "Olmazor",
+  "Uchtepa",
+  "Sergeli",
+  "Yangihayot",
+  "Bektemir",
+  "Yashnobod",
+] as const;
+
+export type TashkentDistrict = (typeof TASHKENT_DISTRICTS)[number];
+
 import { config } from "../config/env.js";
 
 export const JOB_CATEGORIES = [
@@ -126,10 +143,7 @@ function smartRegexFallback(rawText: string): ParsedJob {
   }
 
   // 4. Detect District
-  const districts = [
-    "Chilonzor", "Yunusobod", "Mirzo Ulug‘bek", "Mirobod", "Shayxontohur",
-    "Yakkasaroy", "Olmazor", "Uchtepa", "Sergeli", "Yangihayot", "Bektemir", "Yashnobod"
-  ];
+  const districts = TASHKENT_DISTRICTS;
   let district: string | null = null;
   for (const d of districts) {
     if (lower.includes(d.toLowerCase())) {

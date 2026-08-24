@@ -34,7 +34,8 @@ import {
   getUserByTelegramId,
   getProfileCompletionStatus,
 } from "../services/user.service.js";
-import { getPublishedJobs, getJobById, DBJob, detectJobGender } from "../services/job.service.js";
+import { getPublishedJobs, getJobById, DBJob, detectJobGender, getDistrictJobCounts } from "../services/job.service.js";
+import { TASHKENT_DISTRICTS } from "../core/gemini.js";
 import {
   applyForJob,
   getWorkerApplications,
@@ -287,17 +288,27 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   // Feed / Ishlarni ko'rish
   mainBot.hears("🔍 Ishlarni ko‘rish", async (ctx) => {
     await ctx.replyWithChatAction("typing").catch(() => {});
+    const telegramId = ctx.from?.id;
+    const user = telegramId ? await getUserByTelegramId(telegramId) : null;
+
     const keyboard = new InlineKeyboard();
+
+    if (user?.district) {
+      keyboard.text(`📍 Mening tumanim: ${user.district}`, `worker:dist:${user.district}:0`).row();
+    }
+
     keyboard.text("🌐 Barcha ishlar", "worker:feed:all:0").row();
     keyboard.text("👨 Erkaklar uchun", "worker:feed:gender_male:0")
             .text("👩 Ayollar uchun", "worker:feed:gender_female:0").row();
+
+    keyboard.text("📍 Tumanlar bo‘yicha qidirish", "worker:districts:menu").row();
 
     JOB_CATEGORIES.forEach((cat, idx) => {
       keyboard.text(cat, `worker:feed:${cat}:0`);
       if (idx % 2 === 1) keyboard.row();
     });
 
-    await ctx.reply("Qaysi yo‘nalishdagi ishlarni ko‘rmoqchisiz? Tanlang 👇", {
+    await ctx.reply("Qaysi yo‘nalish yoki tuman bo‘yicha ish qidiryapsiz? Tanlang 👇", {
       reply_markup: keyboard,
     });
   });
@@ -387,17 +398,116 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
 
   mainBot.callbackQuery("worker:back_categories", async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
+    const telegramId = ctx.from?.id;
+    const user = telegramId ? await getUserByTelegramId(telegramId) : null;
+
     const keyboard = new InlineKeyboard();
+    if (user?.district) {
+      keyboard.text(`📍 Mening tumanim: ${user.district}`, `worker:dist:${user.district}:0`).row();
+    }
     keyboard.text("🌐 Barcha ishlar", "worker:feed:all:0").row();
     keyboard.text("👨 Erkaklar uchun", "worker:feed:gender_male:0")
             .text("👩 Ayollar uchun", "worker:feed:gender_female:0").row();
+
+    keyboard.text("📍 Tumanlar bo‘yicha qidirish", "worker:districts:menu").row();
 
     JOB_CATEGORIES.forEach((cat, idx) => {
       keyboard.text(cat, `worker:feed:${cat}:0`);
       if (idx % 2 === 1) keyboard.row();
     });
 
-    await ctx.editMessageText("Qaysi yo‘nalishdagi ishlarni ko‘rmoqchisiz? Tanlang 👇", {
+    await ctx.editMessageText("Qaysi yo‘nalish yoki tuman bo‘yicha ish qidiryapsiz? Tanlang 👇", {
+      reply_markup: keyboard,
+    });
+  });
+
+  // District Selection Menu Callback
+  mainBot.callbackQuery("worker:districts:menu", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const counts = await getDistrictJobCounts();
+    const keyboard = new InlineKeyboard();
+
+    TASHKENT_DISTRICTS.forEach((d, idx) => {
+      const c = counts[d] || 0;
+      const label = c > 0 ? `📍 ${d} (${c})` : `📍 ${d}`;
+      keyboard.text(label, `worker:dist:${d}:0`);
+      if (idx % 2 === 1) keyboard.row();
+    });
+
+    keyboard.row().text("🔙 Asosiy ro‘yxatga qaytish", "worker:back_categories");
+
+    await ctx.editMessageText("🗺 <b>Toshkent shahar tumanini tanlang:</b>\n\nQaysi tumandagi kunlik va soatbay ishlarni ko‘rmoqchisiz?", {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  // Browse Jobs By District Callback
+  mainBot.callbackQuery(/^worker:dist:(.+):(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => {});
+    const district = ctx.match[1];
+    const offset = parseInt(ctx.match[2], 10);
+
+    const { jobs, total } = await getPublishedJobs({
+      district,
+      offset,
+      limit: 1,
+    });
+
+    if (total === 0 || jobs.length === 0) {
+      await ctx.editMessageText(
+        `📍 <b>${district}</b> tumanida hozircha faol e’lonlar mavjud emas. 😔\n\nYangi e’lonlar chiqishi bilan sizga darhol xabar yuboramiz!`,
+        {
+          parse_mode: "HTML",
+          reply_markup: new InlineKeyboard()
+            .text("📍 Boshqa tumanlar", "worker:districts:menu")
+            .row()
+            .text("🔙 Asosiy ro‘yxat", "worker:back_categories"),
+        }
+      );
+      return;
+    }
+
+    const job = jobs[0];
+    const text = renderJobCard(job, offset, total);
+
+    const isExternal = Boolean(job.source_name || job.source_url || !job.employer_id);
+    const keyboard = new InlineKeyboard();
+
+    if (isExternal) {
+      const contacts = extractContactInfo(job.description);
+      if (contacts.telegram) {
+        keyboard.url("💬 Telegramdan yozish", "https://t.me/" + contacts.telegram.replace("@", "")).row();
+      }
+      keyboard.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
+    } else {
+      keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:dist_${district}:${offset}`).row();
+    }
+
+    const navRow: Array<{ text: string; callback_data: string }> = [];
+    if (offset > 0) {
+      navRow.push({
+        text: "⬅️ Oldingisi",
+        callback_data: `worker:dist:${district}:${offset - 1}`,
+      });
+    }
+    if (offset + 1 < total) {
+      navRow.push({
+        text: "Keyingisi ➡️",
+        callback_data: `worker:dist:${district}:${offset + 1}`,
+      });
+    }
+
+    if (navRow.length > 0) {
+      navRow.forEach((btn) => keyboard.text(btn.text, btn.callback_data));
+      keyboard.row();
+    }
+
+    keyboard.text("📍 Boshqa tumanlar", "worker:districts:menu")
+            .text("📂 Kategoriyalar", "worker:back_categories");
+
+    await ctx.editMessageText(text, {
+      parse_mode: "HTML",
       reply_markup: keyboard,
     });
   });

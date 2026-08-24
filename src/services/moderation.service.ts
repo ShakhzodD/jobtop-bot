@@ -91,7 +91,7 @@ export async function broadcastJobToMatchingWorkers(
 
   const { data: workers } = await supabase
     .from("users")
-    .select("telegram_id, worker_categories, bot_state")
+    .select("telegram_id, district, worker_categories, bot_state")
     .not("telegram_id", "is", null);
 
   if (!workers || !workers.length) return;
@@ -130,7 +130,26 @@ export async function broadcastJobToMatchingWorkers(
 
   for (const worker of matchingWorkers) {
     try {
-      await mainBotApi.sendMessage(worker.telegram_id, text, {
+      const isMyDistrict =
+        worker.district &&
+        job.district &&
+        job.district.toLowerCase().includes(worker.district.toLowerCase());
+
+      const header = isMyDistrict
+        ? `📍 <b>Sizning tumaningizda (${job.district}) yangi ish!</b>`
+        : "⚡️ <b>Siz uchun yangi mos ish e’loni!</b>";
+
+      const personalizedText = [
+        header,
+        "",
+        `📌 <b>${job.title}</b>`,
+        `📂 Kategoriya: ${job.category}`,
+        `📍 Tuman / Manzil: ${job.district}, ${job.address}`,
+        `💰 Ish haqi: ${job.pay_amount.toLocaleString()} so‘m`,
+        `👥 Bo‘sh o‘rinlar: ${job.openings} ta`,
+      ].join("\n");
+
+      await mainBotApi.sendMessage(worker.telegram_id, personalizedText, {
         parse_mode: "HTML",
         reply_markup: keyboard,
       });

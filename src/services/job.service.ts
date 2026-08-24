@@ -1,4 +1,25 @@
 
+export async function getDistrictJobCounts(): Promise<Record<string, number>> {
+  const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: jobs } = await supabase
+    .from("jobs")
+    .select("district")
+    .eq("status", "published")
+    .gte("created_at", threeDaysAgo);
+
+  const counts: Record<string, number> = {};
+  if (jobs) {
+    for (const j of jobs) {
+      if (j.district) {
+        const d = j.district.trim();
+        counts[d] = (counts[d] || 0) + 1;
+      }
+    }
+  }
+  return counts;
+}
+
+
 export type JobGender = "male" | "female" | "any";
 
 export function detectJobGender(job: { title: string; description: string; category?: string }): JobGender {
