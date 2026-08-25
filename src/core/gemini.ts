@@ -197,12 +197,13 @@ export async function parseJobWithGemini(
     return smartRegexFallback(rawText);
   }
 
-  const prompt = `Sen JobTop tizimi uchun e’lon tahlilchisi va XAVFSIZLIK FILTRIsisan. Foydalanuvchi yozgan matnni tahlil qilib, FAQAT bitta toza JSON obyekt qaytar. Hech qanday Markdown yoki tushuntirish yozma.
+  const prompt = `Sen JobTop tizimi uchun KUNLIK ISHLAR tahlilchisi va XAVFSIZLIK FILTRIsisan. JobTop — FAQAT KUNLIK, KUNBAY, SOATBAY va TEZKOR BIR MARTALIK ISHLAR platformasi. Foydalanuvchi yozgan matnni tahlil qilib, FAQAT bitta toza JSON obyekt qaytar. Hech qanday Markdown yoki tushuntirish yozma.
 
 QAT'IY QOIDALAR:
 1. Agar e'lon 18+, intim, massaj, tungi klub, qimor/stavka (1xbet), moliyaviy piramida, noqonuniy yoki shubhali bo'lsa -> "isAppropriate": false va "isVacancy": false qilib qaytar.
-2. Agar matn haqiqiy halol kunlik/soatbay ish (yuk tashish, tozalash, kuryer, usta, yordamchi) bo'lsa -> "isAppropriate": true va "isVacancy": true qil.
-3. Ruxsat etilgan kategoriyalar (category): "Kuryer", "Xizmat", "Yuk tashish", "Tozalash".
+2. Agar e'lon KUNLIK/KUNBAY/SOATBAY ISH BO'LMASA (masalan: doimiy oylik ofis ishi, buxgalter, oylik savdo agenti, menejer, rezyume talab qiladigan oylik ish) bo'lsa -> "isVacancy": false qilib qaytar.
+3. FAQAT VA FAQAT haqiqiy KUNLIK, KUNBAY, SOATBAY yoki 1 KUNLIK TEZKOR ISHLAR (yuk tashish, mebel ko‘chirish, tozalash/uborka, idish yuvish, kuryer, banket/to‘y xizmati, stroyka/usta yordamchisi, fura tushirish, omborga 1 kunlik yordamchi) bo'lsa -> "isAppropriate": true va "isVacancy": true qil.
+4. Ruxsat etilgan kategoriyalar (category): "Kuryer", "Xizmat", "Yuk tashish", "Tozalash".
 
 Kutilgan JSON sxemasi:
 {
