@@ -82,6 +82,27 @@ if (modBot !== bot) {
 }
 
 // Start bot runners safely with automatic webhook cleanup
+
+async function ensureBotIdentity() {
+  try {
+    await bot.api.setMyName("JobTop | Kunlik ishlar").catch(() => {});
+    await bot.api.setMyDescription(
+      "JobTop — Toshkentdagi tezkor kunlik ishlar va xizmatlar platformasi. Bir kunda naqd pul ishlang yoki 1 daqiqada baquvvat ishchi toping!"
+    ).catch(() => {});
+    await bot.api.setMyShortDescription(
+      "Toshkentda kunlik ishlar va tezkor xizmatlar platformasi 🇺🇿"
+    ).catch(() => {});
+
+    if (modBot !== bot) {
+      await modBot.api.setMyName("JobTop Moderatsiya").catch(() => {});
+      await modBot.api.setMyDescription("JobTop rasmiy moderatsiya va boshqaruv boti.").catch(() => {});
+      await modBot.api.setMyShortDescription("JobTop Moderatsiya Boti 🛡").catch(() => {});
+    }
+  } catch (e) {
+    console.error("Failed to ensure bot identity:", e);
+  }
+}
+
 async function startBots() {
   try {
     await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
@@ -90,6 +111,8 @@ async function startBots() {
     }
 
     console.log("🚀 JobTop Asosiy Bot va Moderatsiya Boti ishga tushirilmoqda...");
+    await ensureBotIdentity();
+    setInterval(ensureBotIdentity, 30 * 60 * 1000); // Auto-lock identity every 30 mins
     startChannelScraperCron(3);
     startDailyReportCron(modBot.api);
     const runner1 = run(bot);
