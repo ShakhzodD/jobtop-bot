@@ -56,6 +56,7 @@ import {
   broadcastJobToMatchingWorkers,
 } from "../services/moderation.service.js";
 import { importTelegramChannelPost } from "../services/import.service.js";
+import { importJobFromWebUrl } from "../services/web-scraper.service.js";
 import { getJobById, getPendingModerationJobs, DBJob } from "../services/job.service.js";
 import { supabase } from "../core/supabase.js";
 import { getTrafficSourcesAnalytics } from "../services/user.service.js";
@@ -496,7 +497,43 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       }
     }
 
-    await ctx.reply("⏳ <i>Forward qilingan e’lon tahlil qilinmoqda...</i>", {
+    // Check if input is a Web URL (OLX, Ish.uz, Ustabor, Facebook, etc.)
+    const isUrl = /^https?:\/\/\S+/i.test(text);
+
+    if (isUrl) {
+      await ctx.reply("🌐 <i>Veb-sayt sahifasi yuklanmoqda va AI tahlil qilinmoqda...</i>", {
+        parse_mode: "HTML",
+      });
+
+      try {
+        const webResult = await importJobFromWebUrl(text);
+        if (webResult.success && webResult.jobId) {
+          const keyboard = new InlineKeyboard()
+            .text("✅ Tasdiqlash", `admin:mod:${webResult.jobId}:publish`)
+            .text("❌ Rad etish", `admin:mod:${webResult.jobId}:reject`);
+
+          await ctx.reply(
+            `🌐 <b>Veb-saytdan yangi e’lon olindi:</b>\n\n` +
+            `📌 <b>${webResult.title}</b>\n` +
+            `🔗 Manba: ${text}\n\n` +
+            `Ushbu e’lonni tasdiqlab platformaga chiqarasizmi?`,
+            {
+              parse_mode: "HTML",
+              reply_markup: keyboard,
+            }
+          );
+        } else {
+          await ctx.reply(`⚠️ <b>Saytni import qilish natijasi:</b>\n${webResult.message}`, {
+            parse_mode: "HTML",
+          });
+        }
+      } catch (err: any) {
+        await ctx.reply(`❌ Saytni o‘qishda xatolik: ${err.message}`);
+      }
+      return;
+    }
+
+    await ctx.reply("⏳ <i>E’lon tahlil qilinmoqda...</i>", {
       parse_mode: "HTML",
     });
 
