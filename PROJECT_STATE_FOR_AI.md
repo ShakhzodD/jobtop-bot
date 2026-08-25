@@ -146,7 +146,7 @@
 ### F. Moderatsiya Boti (`@jobtopmoderationbot` — `admin.handler.ts`)
 * **`👥 Foydalanuvchilar`**: Barcha foydalanuvchilarni interaktiv sahifalash (pagination) va rol filtrlari (`Hammasi`, `Ishchilar`, `Ish beruvchilar`) bilan ko'rish, Telegram profiliga to'g'ridan-to'g'ri havola.
 * **`📊 Statistika`**: Real-vaqtli tahlil (Jami userlar, Ishchilar, Ish beruvchilar, 24 soatlik oqim, Faol e'lonlar, Moderatsiyadagi ishlar, Sohalar ulushi, Arizalar soni, Ishga joylashish konversiyasi).
-* **To'g'ridan-to'g'ri E'lon Importi**: Admin istalgan guruhdan matnni forward qilsa yoki tashlasa, AI uni darhol tahlil qilib tasdiqlash uchun chiqaradi.
+* **To'g'ridan-to'g'ri E'lon va Veb Havola Importi (Web URL Importer)**: Admin istalgan guruhdan matnni forward qilsa yoki internetdagi sayt havolasini (OLX, Ish.uz, Ustabor, Glotr, Facebook) tashlasa, AI uni 1 soniyada to'liq o'qib, tahlil qilib tasdiqlash uchun chiqaradi.
 * **Ertalabki Avto-Hisobot**: Har kuni soat **09:00 da** adminga kunlik hisobot yuboriladi.
 
 ### G. PRO Akkaunt va Monetizatsiya Tizimi (`payment.service.ts`)
@@ -185,6 +185,7 @@ telegrambot/
 │   │   ├── gemini.ts                           # Gemini AI job parser, TASHKENT_DISTRICTS va xavfsizlik filtri
 │   │   └── supabase.ts                         # Supabase database client
 │   ├── services/
+│   │   ├── web-scraper.service.ts              # Veb-saytlar (OLX, Ish.uz, Ustabor) scraper va URL importeri
 │   │   ├── user.service.ts                     # User CRUD, profillar, retention va gender boshqaruvi
 │   │   ├── job.service.ts                      # E'lonlar CRUD, getDistrictJobCounts, gender klassifikatori (detectJobGender)
 │   │   ├── channel-scraper.service.ts          # 23 ta kanalni 3 minutlik skaneri, dublikat va auto-close filtri
