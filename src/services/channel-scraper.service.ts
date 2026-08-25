@@ -121,6 +121,18 @@ const DEFAULT_CHANNELS = [
   "kunlik_ish_toshkent",
   "toshkent_kunlik_ishlar",
   "mardikor_bozor_toshkent",
+  "ish_toshkent_uz",
+  "ish_bor_toshkent_24",
+  "uzb_ish_bor",
+  "talabalar_ishlari",
+  "toshkent_ish_kanal",
+  "toshkent_ish_bor_vakansiya",
+  "ish_elonlari_toshkent",
+  "ishbor_toshkent_kunlik",
+  "toshkent_ish_elonlar",
+  "rabota_tashkent_jobs",
+  "toshkent_ish_vakansiyalar",
+  "toshkent_kunlik_ishlar_uz",
 ];
 
 const JOB_KEYWORDS = [
