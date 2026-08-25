@@ -25,6 +25,37 @@ const CLOSED_JOB_KEYWORDS = [
   "ish boldi",
 ];
 
+
+const NON_TASHKENT_REGIONS = [
+  "farg'ona", "fargona", "andijon", "namangan", "samarqand", "samarkand",
+  "buxoro", "qashqadaryo", "surxondaryo", "xorazm", "navoiy", "jizzax",
+  "sirdaryo", "nukus", "qo'qon", "qoqon", "marg'ilon", "margilon", "urgut", "shahrisabz", "vodiy"
+];
+
+const MONTHLY_JOB_KEYWORDS = [
+  "oyiga", "oylik maosh", "oylik ish", "stavka oylik", "rezyume", "rezume",
+  "grafik dizayner", "sotuv operatori", "buxgalter", "menejer", "hr menejer",
+  "oylik to'lanadi", "oylik tolanadi", "oylik:", "oylik maosh:", "oylik xaqi"
+];
+
+function isInvalidRegionOrMonthly(text: string): boolean {
+  const lower = text.toLowerCase();
+  
+  // If text explicitly mentions other regions without mentioning Tashkent -> reject
+  const hasOtherRegion = NON_TASHKENT_REGIONS.some(r => lower.includes(r));
+  if (hasOtherRegion && !lower.includes("toshkent")) {
+    return true;
+  }
+
+  // If text mentions monthly salary keywords -> reject
+  const hasMonthly = MONTHLY_JOB_KEYWORDS.some(kw => lower.includes(kw));
+  if (hasMonthly) {
+    return true;
+  }
+
+  return false;
+}
+
 function isJobClosedOrFilled(text: string): boolean {
   const lower = text.toLowerCase();
   return CLOSED_JOB_KEYWORDS.some((kw) => lower.includes(kw));
@@ -101,38 +132,23 @@ const DEFAULT_CHANNELS = [
   "kunlikishlaruz24",
   "talabalar_uchun_ishlar",
   "toshkentda_kunlik_ishlar",
-  "toshkent_ish_elonlari",
   "kunlik_ishlar_rasmiy",
   "talabalar_uchun_ish",
   "kunlik_ishlar_toshkent",
   "talabalar_ish_bor",
-  "toshkentda_ish_bor",
-  "toshkent_ishlari",
-  "toshkentda_ish",
-  "toshkent_ish_bozor",
-  "ish_bor_toshkentda",
-  "talabalar_uchun_vakansiya",
   "toshkent_kunlik_ish",
   "kunlik_ishlar_toshkent_24",
-  "rabota_v_tashkente",
   "Kunlik_ishlar_kunbayToshkentda",
   "kunlik_ishlar_toshkentuz",
   "kunlik_ish_uz",
   "kunlik_ish_toshkent",
   "toshkent_kunlik_ishlar",
   "mardikor_bozor_toshkent",
-  "ish_toshkent_uz",
-  "ish_bor_toshkent_24",
-  "uzb_ish_bor",
   "talabalar_ishlari",
-  "toshkent_ish_kanal",
-  "toshkent_ish_bor_vakansiya",
-  "ish_elonlari_toshkent",
   "ishbor_toshkent_kunlik",
-  "toshkent_ish_elonlar",
-  "rabota_tashkent_jobs",
-  "toshkent_ish_vakansiyalar",
   "toshkent_kunlik_ishlar_uz",
+  "kunlik_ishlar_tashkent",
+  "toshkentda_kunlik_ishlar",
 ];
 
 const JOB_KEYWORDS = [
