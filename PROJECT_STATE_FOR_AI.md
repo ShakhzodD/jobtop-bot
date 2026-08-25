@@ -108,7 +108,10 @@
 ### A. 35 ta Kanalni Avtomatik Skan Qiluvchi Scraper Engine (`channel-scraper.service.ts`)
 * Har **3 daqiqada** Toshkentdagi 35 ta eng yirik va faol kunlik ish kanallarini (`t.me/s/...`) tekshiradi:
   `@kunlikishlaruz24`, `@talabalar_uchun_ishlar`, `@toshkentda_kunlik_ishlar`, `@toshkent_ish_elonlari`, `@kunlik_ishlar_rasmiy`, `@talabalar_uchun_ish`, `@kunlik_ishlar_toshkent`, `@talabalar_ish_bor`, `@toshkentda_ish_bor`, `@toshkent_ishlari`, `@toshkentda_ish`, `@toshkent_ish_bozor`, `@ish_bor_toshkentda`, `@talabalar_uchun_vakansiya`, `@toshkent_kunlik_ish`, `@kunlik_ishlar_toshkent_24`, `@rabota_v_tashkente`, `@Kunlik_ishlar_kunbayToshkentda`, `@kunlik_ishlar_toshkentuz`, `@kunlik_ish_uz`, `@kunlik_ish_toshkent`, `@toshkent_kunlik_ishlar`, `@mardikor_bozor_toshkent`.
-* **Xavfsizlik va 18+ filtri:** Qimor, stavka, massaj, intim, piramida xabarlarini to'liq filtrlaydi, ammo ayollar uchun halol tozalash/oshxona ishlarini o'tkazadi.
+* **Xavfsizlik, Hudud va Oylik Ishlar Qat'iy Filtri:**
+  - **Oylik ishlar bloklanishi:** `oylik`, `oyiga`, `rezyume`, `buxgalter`, `dizayner` va 1.2 mln so'mdan yuqori maoshli oylik ishlar avtomatik bekor qilinadi;
+  - **Boshqa viloyatlar bloklanishi:** Farg'ona, Marg'ilon, Andijon, Samarqand va boshqa viloyat e'lonlari filtrlanadi, FAQAT Toshkent shahri va viloyati qoladi;
+  - **18+ va spam filtri:** Qimor, stavka, massaj, intim, piramida xabarlari to'liq filtrlanadi.
 * **3 Bosqichli Dublikatga Qarshi Tizim (Deduplication):**
   1. Content hash tekshiruvi;
   2. 48 soatlik barcha e'lonlar bilan telefon raqam va telegram username solishtiruvi;
