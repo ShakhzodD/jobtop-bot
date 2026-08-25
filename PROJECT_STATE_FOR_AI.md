@@ -10,8 +10,8 @@
 
 | Komponent | Tavsif | Havola / Token / Username |
 | :--- | :--- | :--- |
-| **🤖 Asosiy Bot** | Ishchilar va Buyurtmachilar uchun asosiy Telegram bot | `@jobtopuzbot` (`8995693178:AAHbHEmwKCg7nWABibCrnZE0IzGrfxrAUkE`) |
-| **🛡 Moderatsiya Boti** | Admin paneli, Jonli statistika, Foydalanuvchilar brauzeri, E'lon moderatsiyasi | `@jobtopmoderationbot` (`8037368717:AAFVkApLftKUt9yeexEGhpg8ljD2MVWo1uA`) |
+| **🤖 Asosiy Bot** | Ishchilar va Buyurtmachilar uchun asosiy Telegram bot | `@jobtopuzbot` (`[PROTECTED_ENV_VARIABLE]`) |
+| **🛡 Moderatsiya Boti** | Admin paneli, Jonli statistika, Foydalanuvchilar brauzeri, E'lon moderatsiyasi | `@jobtopmoderationbot` (`[PROTECTED_ENV_VARIABLE]`) |
 | **📢 Rasmiy Kanal** | Yangi e'lonlar avtomatik post bo'lib tushadigan ommaviy kanal | `@jobtopuzz` (Jobtop kunlik ish elonlari, ID: `-1003947859078`) |
 | **☁️ Backend Hosting** | 24/7 Railway Container Hosting (Deploy via GitHub) | Railway Project: `hospitable-rejoicing`, Service: `jobtop-bot` |
 | **🐙 GitHub Repo** | Bot manba kodi | `https://github.com/ShakhzodD/jobtop-bot.git` |

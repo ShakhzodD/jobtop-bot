@@ -1,3 +1,4 @@
+import { containsPromptInjection } from "./security.js";
 export const TASHKENT_DISTRICTS = [
   "Chilonzor",
   "Yunusobod",
@@ -174,8 +175,8 @@ export async function parseJobWithGemini(
   rawText: string,
   sourceName = "Telegram Bot"
 ): Promise<ParsedJob> {
-  // Pre-filter inappropriate content
-  if (containsInappropriateContent(rawText)) {
+  // Pre-filter inappropriate content and prompt injection
+  if (containsInappropriateContent(rawText) || containsPromptInjection(rawText)) {
     console.warn("🚫 Taqiqlangan / 18+ / Spam so‘zlar aniqlandi, bekor qilindi:", rawText.slice(0, 50));
     return {
       isVacancy: false,
