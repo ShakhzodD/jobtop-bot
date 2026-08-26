@@ -149,6 +149,24 @@
 * **To'g'ridan-to'g'ri E'lon va Veb Havola Importi (Web URL Importer)**: Admin istalgan guruhdan matnni forward qilsa yoki internetdagi sayt havolasini (OLX, Ish.uz, Ustabor, Glotr, Facebook) tashlasa, AI uni 1 soniyada to'liq o'qib, tahlil qilib tasdiqlash uchun chiqaradi.
 * **Ertalabki Avto-Hisobot**: Har kuni soat **09:00 da** adminga kunlik hisobot yuboriladi.
 
+
+### H. 🎁 "3 ta Do‘st = 1 Haftalik Bepul PRO" Virusli Referral Dvigateli (`user.service.ts` & `start.handler.ts`)
+* **Avtomatik Mukofotlash Mexanizmi:**
+  * Har bir foydalanuvchining shaxsiy havolasi mavjud: `https://t.me/jobtopuzbot?start=ref_${telegram_id}`;
+  * Foydalanuvchi taklif qilgan do‘stlar soni `users.bot_state.referred_users` va `referral_count` da saqlanadi;
+  * Har **3 ta haqiqiy do‘st** qo‘shilganda — tizim avtomatik ravishda **aniq 7 kunlik (168 soat)** ⭐️ PRO Akkaunt yoqadi (`pro_until = now + 7 days`);
+  * 7 kun (1 hafta) o‘tishi bilan — tizim `isUserPro` orqali obunani millisekundigacha **avtomatik o‘chiradi (deactivate)**!
+  * Foydalanuvchiga real-vaqtda bayramona tabrik xabari va PRO amal qilish muddati yuboriladi;
+* **Interaktiv Taklif Menyusi (`👥 Sherikni taklif qilish`):**
+  * Foydalanuvchi o‘z takliflar sonini (`[ 2 / 3 ta ]`) va qolgan do‘stlar sonini ko‘radi;
+  * `[📤 1 Bosishda Do‘stlarga / Guruhga Ulashish]` tugmasi Telegram chat tanlagichini tayyor virusli xabar bilan ochadi;
+* **Har bir E’lon Ostida "📤 Do‘stga / Guruhga Yuborish" Tugmasi:**
+  * E’lon kartochkalarida 1 bosishda do‘stlarga tashlash tugmasi orqali brigadalar birgalikda ishga chaqiriladi;
+* **Admin Moderatsiya Botida Jonli Referral Reytingi (`📊 Statistika`):**
+  * Kim nechta odam taklif qilganini to‘liq ro‘yxat bilan ko‘rsatadi:
+    `1. Islom Barotov (@Islomjon002007) — 4 ta do‘st (⭐️ PRO faol)`
+    `2. Azimjon (@AzimjonFx_000) — 3 ta do‘st (⭐️ PRO faol)`
+
 ### G. PRO Akkaunt va Monetizatsiya Tizimi (`payment.service.ts`)
 * Ta'riflar: 🥉 1 hafta (29 000 so'm), 🥈 1 oy (79 000 so'm), 🥇 3 oy (189 000 so'm).
 * To'lov: Humo / Milliy Bank (`9860350149328659`, SHAHZOD URINBOYEV) + Click / Payme havolalari.
