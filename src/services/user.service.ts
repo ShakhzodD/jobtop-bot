@@ -1,4 +1,161 @@
 
+export async function processReferralJoin(
+  newTelegramId: number,
+  inviterTelegramId: number,
+  mainBotApi?: any
+): Promise<void> {
+  try {
+    if (!inviterTelegramId || newTelegramId === inviterTelegramId) return;
+
+    const inviter = await getUserByTelegramId(inviterTelegramId);
+    if (!inviter) return;
+
+    const newUser = await getUserByTelegramId(newTelegramId);
+    const newUserBotState = (newUser as any)?.bot_state || {};
+    
+    // Check if new user was already referred by someone before
+    if (newUserBotState.referred_by) return;
+
+    // 1. Mark new user as referred
+    if (newUser) {
+      await supabase
+        .from("users")
+        .update({
+          bot_state: {
+            ...newUserBotState,
+            referred_by: inviterTelegramId,
+            utm_source: "referral",
+            referred_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", newUser.id);
+    }
+
+    // 2. Update inviter's referral list
+    const inviterBotState = (inviter as any)?.bot_state || {};
+    const existingReferred: number[] = Array.isArray(inviterBotState.referred_users)
+      ? inviterBotState.referred_users
+      : [];
+
+    if (existingReferred.includes(newTelegramId)) return;
+
+    const updatedReferred = [...existingReferred, newTelegramId];
+    const newCount = updatedReferred.length;
+
+    // Check if threshold (3 invites) reached and 1-week PRO should be awarded
+    let shouldAwardPro = false;
+    const lastProAwardCount = inviterBotState.last_referral_pro_at_count || 0;
+
+    if (newCount >= 3 && newCount >= lastProAwardCount + 3) {
+      shouldAwardPro = true;
+    }
+
+    let proExpiryDateStr = "";
+    let updatedProUntil = inviterBotState.pro_until;
+
+    if (shouldAwardPro) {
+      const days = 7; // 1 week
+      const currentExpiry = inviterBotState.pro_until ? new Date(inviterBotState.pro_until).getTime() : Date.now();
+      const baseTime = currentExpiry > Date.now() ? currentExpiry : Date.now();
+      const proUntilMs = baseTime + days * 24 * 60 * 60 * 1000;
+      updatedProUntil = new Date(proUntilMs).toISOString();
+
+      proExpiryDateStr = new Date(proUntilMs).toLocaleDateString("uz-UZ", {
+        timeZone: "Asia/Tashkent",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    }
+
+    await supabase
+      .from("users")
+      .update({
+        bot_state: {
+          ...inviterBotState,
+          referred_users: updatedReferred,
+          referral_count: newCount,
+          is_pro: shouldAwardPro ? true : inviterBotState.is_pro,
+          pro_until: shouldAwardPro ? updatedProUntil : inviterBotState.pro_until,
+          pro_plan: shouldAwardPro ? "🥉 1 haftalik PRO (Referral Sovg‘asi)" : inviterBotState.pro_plan,
+          last_referral_pro_at_count: shouldAwardPro ? newCount : lastProAwardCount,
+        },
+      })
+      .eq("id", inviter.id);
+
+    console.log(`🎉 User ${inviterTelegramId} invited ${newTelegramId}. Total referrals: ${newCount}`);
+
+    // 3. Send real-time notification to inviter via bot API
+    if (mainBotApi) {
+      if (shouldAwardPro) {
+        const rewardMsg = [
+          "🎉 <b>TABRIKLAYMIZ! 1 HAFTALIK BEPUL PRO YUTIB OLDINGIZ!</b> 🎁⭐️",
+          "",
+          `Sizning taklif havolangiz orqali <b>${newCount} ta do‘stingiz</b> botga qo‘shildi!`,
+          "",
+          "⭐️ <b>Sizga berilgan imtiyozlar:</b>",
+          "• Arizalarda har doim <b>1-o‘rinda ko‘rinish</b>;",
+          "• Profilingizda <b>⭐️ PRO USTA</b> ishonch nishoni;",
+          "• Eng yangi qaynoq ishlarga <b>tezkor VIP xabarnoma</b>!",
+          "",
+          `📅 <b>Amal qilish muddati:</b> ${proExpiryDateStr} gacha (7 kun)...`,
+        ].join("\n");
+
+        await mainBotApi.sendMessage(inviterTelegramId, rewardMsg, { parse_mode: "HTML" }).catch(() => {});
+      } else {
+        const remaining = 3 - (newCount % 3);
+        const progressMsg = [
+          "👋 <b>Yangi do‘stingiz botga qo‘shildi!</b>",
+          "",
+          `📊 Jami taklif qilgan do‘stlaringiz: <b>${newCount} ta</b>`,
+          `⏳ Yana <b>${remaining} ta</b> do‘stingiz qo‘shilsa — sizga <b>1 haftalik ⭐️ PRO Akkaunt</b> bepul beriladi!`,
+        ].join("\n");
+
+        await mainBotApi.sendMessage(inviterTelegramId, progressMsg, { parse_mode: "HTML" }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    console.error("Error processing referral join:", err);
+  }
+}
+
+export async function getReferralLeaderboard(): Promise<Array<{
+  name: string;
+  username: string | null;
+  phone: string | null;
+  referralCount: number;
+  isPro: boolean;
+  proUntil: string | null;
+}>> {
+  const { data: users, error } = await supabase
+    .from("users")
+    .select("full_name, telegram_username, phone, bot_state");
+
+  if (error || !users) return [];
+
+  const list = users
+    .map((u) => {
+      const state = (u as any)?.bot_state || {};
+      const count = Number(state.referral_count || (Array.isArray(state.referred_users) ? state.referred_users.length : 0));
+      const proUntil = state.pro_until || null;
+      const isPro = Boolean(state.is_pro && proUntil && new Date(proUntil).getTime() > Date.now());
+
+      return {
+        name: u.full_name,
+        username: u.telegram_username ? "@" + u.telegram_username : null,
+        phone: u.phone,
+        referralCount: count,
+        isPro,
+        proUntil,
+      };
+    })
+    .filter((u) => u.referralCount > 0)
+    .sort((a, b) => b.referralCount - a.referralCount);
+
+  return list;
+}
+
+
 export async function recordUserTrafficSource(
   telegramId: number,
   source: string,

@@ -369,6 +369,10 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:${categoryParam}:${offset}`).row();
     }
 
+    const shareText = encodeURIComponent(`⚡️ Toshkentda yangi kunlik ish: "${job.title}" (${job.pay_amount.toLocaleString()} so‘m)! Birga boramizmi? 👇`);
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/jobtopuzbot?start=job_${job.id}`)}&text=${shareText}`;
+    keyboard.url("📤 Do‘stga / Guruhga yuborish", shareUrl).row();
+
     const navRow: Array<{ text: string; callback_data: string }> = [];
     if (offset > 0) {
       navRow.push({
@@ -483,6 +487,10 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     } else {
       keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:dist_${district}:${offset}`).row();
     }
+
+    const distShareText = encodeURIComponent(`⚡️ Toshkentda (${district}) yangi kunlik ish: "${job.title}" (${job.pay_amount.toLocaleString()} so‘m)! Birga boramizmi? 👇`);
+    const distShareUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/jobtopuzbot?start=job_${job.id}`)}&text=${distShareText}`;
+    keyboard.url("📤 Do‘stga / Guruhga yuborish", distShareUrl).row();
 
     const navRow: Array<{ text: string; callback_data: string }> = [];
     if (offset > 0) {

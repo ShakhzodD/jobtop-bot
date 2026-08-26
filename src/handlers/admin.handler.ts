@@ -59,7 +59,7 @@ import { importTelegramChannelPost } from "../services/import.service.js";
 import { importJobFromWebUrl } from "../services/web-scraper.service.js";
 import { getJobById, getPendingModerationJobs, DBJob } from "../services/job.service.js";
 import { supabase } from "../core/supabase.js";
-import { getTrafficSourcesAnalytics } from "../services/user.service.js";
+import { getTrafficSourcesAnalytics, getReferralLeaderboard } from "../services/user.service.js";
 
 export const moderationMenuKeyboard = new Keyboard()
   .text("📋 Moderatsiyadagi e’lonlar")
@@ -370,6 +370,15 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       ? trafficStats.breakdown.map((item: any) => `• ${item.name}: <b>${item.count} ta</b> (${item.percent}%)`).join("\n")
       : "• Ma’lumotlar to‘planmoqda...";
 
+    const referralLeaders = await getReferralLeaderboard();
+    const referralLines = referralLeaders.length > 0
+      ? referralLeaders.slice(0, 5).map((u: any, i: number) => {
+          const tag = u.username || u.name;
+          const proBadge = u.isPro ? "⭐️ PRO faol" : "oddiy";
+          return `${i + 1}. <b>${tag}</b> — <b>${u.referralCount} ta do‘st</b> (${proBadge})`;
+        }).join("\n")
+      : "• Hozircha faol takliflar yo‘q";
+
     const statsText = [
       "📊 <b>JobTop Tizim va Faollik Tahlili (Analytics):</b>",
       "",
@@ -381,6 +390,9 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       "",
       "📍 <b>Foydalanuvchilar Kelish Manbalari (Traffic Sources):</b>",
       trafficLines,
+      "",
+      "🎁 <b>Eng Ko‘p Do‘st Taklif Qilganlar (Referral Top):</b>",
+      referralLines,
       "",
       "💼 <b>E’lonlar va Bozor Holati:</b>",
       `• Hozir faol e’lonlar: <b>${publishedJobsCount ?? 0} ta</b>`,

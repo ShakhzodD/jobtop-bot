@@ -8,6 +8,7 @@ import {
   setActiveRole,
   getProfileCompletionStatus,
   recordUserTrafficSource,
+  processReferralJoin,
 } from "../services/user.service.js";
 import { roleSelectionKeyboard, contactRequestKeyboard } from "../keyboards/auth.js";
 import { getWorkerMainMenu, getEmployerMainMenu } from "../keyboards/main-menu.js";
@@ -71,29 +72,104 @@ export function registerStartHandlers(bot: Bot<MyContext>) {
     const telegramId = ctx.from?.id;
     if (!telegramId) return;
 
+    const user = await getUserByTelegramId(telegramId);
+    const botState = (user as any)?.bot_state || {};
+    const count = Number(botState.referral_count || (Array.isArray(botState.referred_users) ? botState.referred_users.length : 0));
+    const remaining = count === 0 ? 3 : (count % 3 === 0 ? 0 : 3 - (count % 3));
+    const isPro = Boolean(botState.is_pro && botState.pro_until && new Date(botState.pro_until).getTime() > Date.now());
+
+    let proStatusText = "⏳ <i>Yana 3 ta do‘stingiz qo‘shilsa yoqiladi</i>";
+    if (isPro) {
+      const expStr = new Date(botState.pro_until).toLocaleDateString("uz-UZ", {
+        timeZone: "Asia/Tashkent",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      proStatusText = `⭐️ <b>PRO FAOL</b> (Muddati: ${expStr} gacha)`;
+    } else if (count > 0 && remaining > 0) {
+      proStatusText = `⏳ <i>Yana <b>${remaining} ta</b> do‘stingiz qo‘shilsa yoqiladi!</i>`;
+    }
+
     const botInfo = await bot.api.getMe();
     const refLink = `https://t.me/${botInfo.username}?start=ref_${telegramId}`;
     const shareText = encodeURIComponent(
-      `Toshkentda bir kunlik va kunbay ishlarni topish uchun JobTop botiga kiring! Do‘stlar va brigadalar uchun juda qulay:\n${refLink}`
+      `Toshkentda talabalar va ustalar uchun bir kunlik naqd pulli ishlar boti! Har kuni yangi ishlar chiqadi:`
     );
 
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
 
-    const keyboard = new InlineKeyboard().url(
-      "📤 Do‘stlarga / Guruhga ulashish",
-      shareUrl
-    );
+    const keyboard = new InlineKeyboard()
+      .url("📤 1 Bosishda Do‘stlarga / Guruhga Ulashish", shareUrl)
+      .row()
+      .text("🔄 Ma’lumotni yangilash", "ref:refresh");
 
     await ctx.reply(
-      "👥 <b>Do‘stlaringiz va sheriklaringizni taklif qiling!</b>\n\n" +
-        "JobTop botini do‘stlaringiz, tanishlaringiz va brigadangizga yuboring. Birgalikda jamoaviy ishlarga oson ariza topshiring va daromad qiling!\n\n" +
-        `🔗 <b>Sizning shaxsiy taklif havolangiz:</b>\n<code>${refLink}</code>\n\n` +
-        "Pastdagi tugma orqali havolani to‘g‘ridan-to‘g‘ri Telegramdagi do‘stlaringiz yoki guruhlarga bitta bosishda yuborishingiz mumkin 👇",
+      "👥 <b>Do‘stlarni Taklif Qilish — 1 Haftalik Bepul PRO Oling! 🎁</b>\n\n" +
+      "Har <b>3 ta do‘stingiz</b> sizning taklif havolangiz orqali botga qo‘shilganda — sizga <b>1 haftalik ⭐️ PRO Akkaunt (Arizalarda 1-o‘rin va VIP xabarnoma) mutlaqo BEPUL</b> beriladi!\n\n" +
+      `📊 <b>Sizning ko‘rsatkichingiz:</b>\n` +
+      `• Taklif qilingan do‘stlar: <b>${count} ta</b>\n` +
+      `• PRO holati: ${proStatusText}\n\n` +
+      `🔗 <b>Sizning shaxsiy taklif havolangiz:</b>\n` +
+      `<code>${refLink}</code>\n\n` +
+      "Pastdagi tugma orqali ushbu havolani do‘stlaringiz yoki guruhlarga bitta bosishda yuborishingiz mumkin 👇",
       {
         parse_mode: "HTML",
         reply_markup: keyboard,
       }
     );
+  });
+
+  bot.callbackQuery("ref:refresh", async (ctx) => {
+    await ctx.answerCallbackQuery({ text: "Ma’lumotlar yangilandi!" }).catch(() => {});
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const user = await getUserByTelegramId(telegramId);
+    const botState = (user as any)?.bot_state || {};
+    const count = Number(botState.referral_count || (Array.isArray(botState.referred_users) ? botState.referred_users.length : 0));
+    const remaining = count === 0 ? 3 : (count % 3 === 0 ? 0 : 3 - (count % 3));
+    const isPro = Boolean(botState.is_pro && botState.pro_until && new Date(botState.pro_until).getTime() > Date.now());
+
+    let proStatusText = "⏳ <i>Yana 3 ta do‘stingiz qo‘shilsa yoqiladi</i>";
+    if (isPro) {
+      const expStr = new Date(botState.pro_until).toLocaleDateString("uz-UZ", {
+        timeZone: "Asia/Tashkent",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      proStatusText = `⭐️ <b>PRO FAOL</b> (Muddati: ${expStr} gacha)`;
+    } else if (count > 0 && remaining > 0) {
+      proStatusText = `⏳ <i>Yana <b>${remaining} ta</b> do‘stingiz qo‘shilsa yoqiladi!</i>`;
+    }
+
+    const botInfo = await bot.api.getMe();
+    const refLink = `https://t.me/${botInfo.username}?start=ref_${telegramId}`;
+    const shareText = encodeURIComponent(
+      `Toshkentda talabalar va ustalar uchun bir kunlik naqd pulli ishlar boti! Har kuni yangi ishlar chiqadi:`
+    );
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
+
+    const keyboard = new InlineKeyboard()
+      .url("📤 1 Bosishda Do‘stlarga / Guruhga Ulashish", shareUrl)
+      .row()
+      .text("🔄 Ma’lumotni yangilash", "ref:refresh");
+
+    await ctx.editMessageText(
+      "👥 <b>Do‘stlarni Taklif Qilish — 1 Haftalik Bepul PRO Oling! 🎁</b>\n\n" +
+      "Har <b>3 ta do‘stingiz</b> sizning taklif havolangiz orqali botga qo‘shilganda — sizga <b>1 haftalik ⭐️ PRO Akkaunt (Arizalarda 1-o‘rin va VIP xabarnoma) mutlaqo BEPUL</b> beriladi!\n\n" +
+      `📊 <b>Sizning ko‘rsatkichingiz:</b>\n` +
+      `• Taklif qilingan do‘stlar: <b>${count} ta</b>\n` +
+      `• PRO holati: ${proStatusText}\n\n` +
+      `🔗 <b>Sizning shaxsiy taklif havolangiz:</b>\n` +
+      `<code>${refLink}</code>\n\n` +
+      "Pastdagi tugma orqali ushbu havolani do‘stlaringiz yoki guruhlarga bitta bosishda yuborishingiz mumkin 👇",
+      {
+        parse_mode: "HTML",
+        reply_markup: keyboard,
+      }
+    ).catch(() => {});
   });
 
   // Support & Feedback
@@ -115,6 +191,11 @@ export function registerStartHandlers(bot: Bot<MyContext>) {
     } else if (payload.startsWith("ref_")) {
       trafficSource = "referral";
       referredBy = parseInt(payload.replace("ref_", ""), 10) || null;
+      if (referredBy) {
+        processReferralJoin(telegramId, referredBy, bot.api).catch((err: any) =>
+          console.error("Error processing referral:", err)
+        );
+      }
     } else if (payload.startsWith("job_")) {
       trafficSource = "channel_job_button";
     }
