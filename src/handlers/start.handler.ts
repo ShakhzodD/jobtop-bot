@@ -94,7 +94,7 @@ export function registerStartHandlers(bot: Bot<MyContext>) {
     const botInfo = await bot.api.getMe();
     const refLink = `https://t.me/${botInfo.username}?start=ref_${telegramId}`;
     const shareText = encodeURIComponent(
-      `Toshkentda talabalar va ustalar uchun bir kunlik naqd pulli ishlar boti! Har kuni yangi ishlar chiqadi:`
+      `Toshkentda har kuni yangi bir kunlik va kunbay naqd pulli ishlarni topish uchun JobTop boti! 🇺🇿💸`
     );
 
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
@@ -147,7 +147,7 @@ export function registerStartHandlers(bot: Bot<MyContext>) {
     const botInfo = await bot.api.getMe();
     const refLink = `https://t.me/${botInfo.username}?start=ref_${telegramId}`;
     const shareText = encodeURIComponent(
-      `Toshkentda talabalar va ustalar uchun bir kunlik naqd pulli ishlar boti! Har kuni yangi ishlar chiqadi:`
+      `Toshkentda har kuni yangi bir kunlik va kunbay naqd pulli ishlarni topish uchun JobTop boti! 🇺🇿💸`
     );
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(refLink)}&text=${shareText}`;
 
