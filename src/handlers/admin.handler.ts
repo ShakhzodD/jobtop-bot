@@ -467,6 +467,63 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
     }
   });
 
+
+  // Broadcast to all users
+  modBot.hears("📢 Ommaviy xabar (Broadcast)", async (ctx) => {
+    const telegramId = ctx.from?.id;
+    if (!telegramId || !config.adminTelegramIds.includes(telegramId)) return;
+
+    await ctx.reply(
+      "📢 <b>Barcha foydalanuvchilarga xabar yuborish:</b>\n\n" +
+      "Barcha bot foydalanuvchilariga e’lon yoki yangilik yuborish uchun quyidagi formatda yozing:\n\n" +
+      "<code>/broadcast Sizning xabaringiz matni...</code>",
+      { parse_mode: "HTML" }
+    );
+  });
+
+  modBot.command("broadcast", async (ctx) => {
+    const telegramId = ctx.from?.id;
+    if (!telegramId || !config.adminTelegramIds.includes(telegramId)) return;
+
+    const messageText = ctx.match?.trim();
+    if (!messageText) {
+      await ctx.reply("⚠️ Xabar matnini kiriting! Masalan:\n<code>/broadcast Salom barchaga!</code>", {
+        parse_mode: "HTML",
+      });
+      return;
+    }
+
+    const { data: users } = await supabase
+      .from("users")
+      .select("telegram_id")
+      .not("telegram_id", "is", null);
+
+    if (!users || users.length === 0) {
+      await ctx.reply("Foydalanuvchilar topilmadi.");
+      return;
+    }
+
+    await ctx.reply(`⏳ ${users.length} ta foydalanuvchiga xabar yuborilmoqda...`);
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const u of users) {
+      try {
+        await mainBot.api.sendMessage(u.telegram_id, messageText, { parse_mode: "HTML" });
+        sent++;
+      } catch (e) {
+        failed++;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+
+    await ctx.reply(
+      `✅ <b>Ommaviy xabar yuborildi!</b>\n\n• Muvaffaqiyatli: <b>${sent} ta</b>\n• Yetib bormadi (bloklagan): <b>${failed} ta</b>`,
+      { parse_mode: "HTML" }
+    );
+  });
+
   // 6. Admin Forward Import
   modBot.on("message", async (ctx, next) => {
     const telegramId = ctx.from?.id;
