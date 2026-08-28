@@ -128,15 +128,21 @@ export async function broadcastJobToMatchingWorkers(
 
   const keyboard = new InlineKeyboard().text("🔍 E’lonni ochish", `job:view:${job.id}`);
 
+  const shareText = encodeURIComponent(`⚡️ Toshkentda (${job.district}) yangi kunlik ish: "${job.title}" (${job.pay_amount.toLocaleString()} so‘m)! Birga boramizmi? 👇`);
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/jobtopuzbot?start=job_${job.id}`)}&text=${shareText}`;
+
   for (const worker of matchingWorkers) {
     try {
+      // Check if user disabled geo alerts
+      if ((worker as any)?.bot_state?.geo_alerts_disabled === true) continue;
+
       const isMyDistrict =
         worker.district &&
         job.district &&
-        job.district.toLowerCase().includes(worker.district.toLowerCase());
+        (job.district.toLowerCase().includes(worker.district.toLowerCase()) || worker.district.toLowerCase().includes(job.district.toLowerCase()));
 
       const header = isMyDistrict
-        ? `📍 <b>Sizning tumaningizda (${job.district}) yangi ish!</b>`
+        ? `📍 <b>SIZNING TUMANINGIZDA (${job.district}) YANGI ISH CHIQDI! 🔥</b>`
         : "⚡️ <b>Siz uchun yangi mos ish e’loni!</b>";
 
       const personalizedText = [
@@ -145,13 +151,19 @@ export async function broadcastJobToMatchingWorkers(
         `📌 <b>${job.title}</b>`,
         `📂 Kategoriya: ${job.category}`,
         `📍 Tuman / Manzil: ${job.district}, ${job.address}`,
-        `💰 Ish haqi: ${job.pay_amount.toLocaleString()} so‘m`,
+        `💰 Ish haqi: <b>${job.pay_amount.toLocaleString()} so‘m</b>`,
         `👥 Bo‘sh o‘rinlar: ${job.openings} ta`,
+        "",
+        "<i>Birinchilardan bo‘lib ko‘ring va buyurtmachi bilan bog‘laning 👇</i>",
       ].join("\n");
+
+      const itemKeyboard = new InlineKeyboard()
+        .text("🔍 E’lonni ko‘rish", `job:view:${job.id}`)
+        .url("📤 Do‘stga yuborish", shareUrl);
 
       await mainBotApi.sendMessage(worker.telegram_id, personalizedText, {
         parse_mode: "HTML",
-        reply_markup: keyboard,
+        reply_markup: itemKeyboard,
       });
     } catch (err) {
       // Worker may have blocked bot

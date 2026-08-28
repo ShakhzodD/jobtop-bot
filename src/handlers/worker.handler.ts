@@ -870,6 +870,98 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
   });
 
   // View Profile: Shows rating, completion bar & categories
+
+  // District Geo-Alerts Management Menu
+  mainBot.hears(["📍 Mening tumanim", "🔔 Tuman xabarnomalari", "📍 Mening tumanim & Xabarnomalar"], async (ctx) => {
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const user = await getUserByTelegramId(telegramId);
+    const currentDistrict = user?.district || (user as any)?.bot_state?.district || "Tanlanmagan";
+    const alertsActive = (user as any)?.bot_state?.geo_alerts_disabled !== true;
+
+    const keyboard = new InlineKeyboard();
+    TASHKENT_DISTRICTS.forEach((dist, idx) => {
+      const isSelected = currentDistrict.toLowerCase().includes(dist.toLowerCase());
+      const label = isSelected ? "✅ " + dist : dist;
+      keyboard.text(label, "geo:set_dist:" + dist);
+      if (idx % 2 === 1) keyboard.row();
+    });
+    keyboard.row().text("🌐 Barcha tumanlar bo‘yicha xabar olish", "geo:set_dist:all");
+
+    const message = [
+      "📍 <b>Tumaningiz Bo‘yicha Tezkor Xabarnomalar (Geo-Alerts) 🔔</b>",
+      "",
+      "Sizning hozirgi tumaningiz: <b>" + currentDistrict + "</b>",
+      "Xabarnoma holati: <b>" + (alertsActive ? "🟢 FAOL (Doimiy xabar beriladi)" : "🔴 O‘chirilgan") + "</b>",
+      "",
+      "⚡️ <i>Siz tanlagan tumanda yangi bir kunlik ish chiqishi bilan — bot sizga <b>1-soniyadayoq shaxsiy VIP xabar</b> yuboradi!</i>",
+      "",
+      "O‘zingiz yashaydigan yoki ishlamoqchi bo‘lgan tumanni tanlang 👇",
+    ].join("\n");
+
+    await ctx.reply(message, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    });
+  });
+
+  mainBot.callbackQuery(/^geo:set_dist:(.+)$/, async (ctx) => {
+    const dist = ctx.match[1];
+    const telegramId = ctx.from?.id;
+    if (!telegramId) return;
+
+    const newDistrict = dist === "all" ? "Toshkent" : dist;
+
+    // Update in database
+    const user = await getUserByTelegramId(telegramId);
+    if (user) {
+      const botState = (user as any)?.bot_state || {};
+      await supabase
+        .from("users")
+        .update({
+          district: newDistrict,
+          bot_state: {
+            ...botState,
+            district: newDistrict,
+            geo_alerts_disabled: false,
+            district_updated_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", user.id);
+    }
+
+    await ctx.answerCallbackQuery({
+      text: "✅ Tumaningiz muvaffaqiyatli saqlandi: " + newDistrict + "!",
+      show_alert: true,
+    }).catch(() => {});
+
+    const keyboard = new InlineKeyboard();
+    TASHKENT_DISTRICTS.forEach((d, idx) => {
+      const isSelected = newDistrict.toLowerCase().includes(d.toLowerCase());
+      const label = isSelected ? "✅ " + d : d;
+      keyboard.text(label, "geo:set_dist:" + d);
+      if (idx % 2 === 1) keyboard.row();
+    });
+    keyboard.row().text("🌐 Barcha tumanlar bo‘yicha xabar olish", "geo:set_dist:all");
+
+    const message = [
+      "📍 <b>Tumaningiz Muvaffaqiyatli Yangilandi! 🔔</b>",
+      "",
+      "Belgilangan tuman: <b>" + newDistrict + "</b> ✅",
+      "Xabarnoma holati: <b>🟢 FAOL</b>",
+      "",
+      "⚡️ Endi <b>" + newDistrict + "</b> tumanida har qanday yangi kunlik ish e’loni chiqqan zahoti — telefoningizga <b>birinchi bo‘lib VIP signal</b> keladi!",
+      "",
+      "Boshqa tumanni tanlash uchun quyidagilardan birini bosing 👇",
+    ].join("\n");
+
+    await ctx.editMessageText(message, {
+      parse_mode: "HTML",
+      reply_markup: keyboard,
+    }).catch(() => {});
+  });
+
   mainBot.hears("👤 Mening profilim", async (ctx) => {
     await ctx.replyWithChatAction("typing").catch(() => {});
     const telegramId = ctx.from?.id;

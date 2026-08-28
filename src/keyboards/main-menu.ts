@@ -5,12 +5,13 @@ export function getWorkerMainMenu() {
     .text("🔍 Ishlarni ko‘rish")
     .text("📄 Mening arizalarim")
     .row()
+    .text("📍 Mening tumanim & Xabarnomalar")
     .text("👤 Mening profilim")
+    .row()
     .text("👥 Sherikni taklif qilish")
-    .row()
     .text("❓ Qanday ishlaydi?")
-    .text("✍️ Murojaat va takliflar")
     .row()
+    .text("✍️ Murojaat va takliflar")
     .text("🔄 Ish beruvchi rejimiga o‘tish")
     .resized();
 }
