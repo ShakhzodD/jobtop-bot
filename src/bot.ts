@@ -116,8 +116,31 @@ async function startBots() {
     setInterval(ensureBotIdentity, 30 * 60 * 1000); // Auto-lock identity every 30 mins
     startChannelScraperCron(3);
     startDailyReportCron(modBot.api);
-    const runner1 = run(bot);
-    const runner2 = modBot !== bot ? run(modBot) : null;
+    let runner1 = run(bot);
+    let runner2 = modBot !== bot ? run(modBot) : null;
+
+    if (runner1) {
+      runner1.task()?.catch((err) => {
+        console.error("Main Bot Runner error:", err);
+      });
+    }
+    if (runner2) {
+      runner2.task()?.catch((err) => {
+        console.error("Moderation Bot Runner error:", err);
+      });
+    }
+
+    // Auto-Recovery Watchdog every 60s
+    setInterval(() => {
+      if (runner1 && !runner1.isRunning()) {
+        console.warn("⚠️ Main Bot runner stopped. Restarting...");
+        runner1 = run(bot);
+      }
+      if (modBot !== bot && (!runner2 || !runner2.isRunning())) {
+        console.warn("⚠️ Moderation Bot runner stopped. Restarting...");
+        runner2 = run(modBot);
+      }
+    }, 60 * 1000);
 
     const stopRunners = () => {
       if (runner1 && runner1.isRunning()) runner1.stop();

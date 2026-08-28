@@ -315,7 +315,9 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
   });
 
   // 4. "📊 Statistika" Button
-  modBot.hears("📊 Statistika", async (ctx) => {
+  modBot.command(["stats", "statistika"], async (ctx) => handleStats(ctx));
+  modBot.hears(["📊 Statistika", "Statistika", "statistika"], async (ctx) => handleStats(ctx));
+  async function handleStats(ctx: any) {
     await ctx.replyWithChatAction("typing").catch(() => {});
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -413,7 +415,7 @@ export function registerAdminHandlers(modBot: Bot<MyContext>, mainBot: Bot<MyCon
       parse_mode: "HTML",
       reply_markup: moderationMenuKeyboard,
     });
-  });
+  }
 
   // 5. Moderation Callback (Approve / Reject)
   modBot.callbackQuery(/^admin:mod:(.+):(publish|reject)$/, async (ctx) => {
