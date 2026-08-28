@@ -150,6 +150,16 @@
 * **Ertalabki Avto-Hisobot**: Har kuni soat **09:00 da** adminga kunlik hisobot yuboriladi.
 
 
+
+### I. 📍 "Mening Tumanim & Tezkor Xabarnomalar" (District Geo-Alerts Tizimi)
+* **Qanday ishlaydi:**
+  * Ishchilar asosiy menyusida: `📍 Mening tumanim & Xabarnomalar` tugmasi;
+  * Foydalanuvchi Toshkentning 12 ta tumanidan birini (Chilonzor, Yunusobod, Sergeli, Mirzo Ulug‘bek...) yoki "Barcha tumanlar"ni tanlaydi;
+  * Tanlangan tuman `users.district` va `users.bot_state.district` da darhol saqlanadi;
+  * O‘sha tumanda har qanday yangi kunlik ish tasdiqlanishi yoki skreperdan o‘tishi bilan — tizim foydalanuvchiga 1-soniyada:
+    `📍 SIZNING TUMANINGIZDA (Chilonzor) YANGI ISH CHIQDI! 🔥`
+    matni, ish haqi, to‘liq tavsifi, `[🔍 E’lonni ko‘rish]` va `[📤 Do‘stga yuborish]` tugmalari bilan shaxsiy VIP Push-xabarnoma yuboradi!
+
 ### H. 🎁 "3 ta Do‘st = 1 Haftalik Bepul PRO" Virusli Referral Dvigateli (`user.service.ts` & `start.handler.ts`)
 * **Avtomatik Mukofotlash Mexanizmi:**
   * Har bir foydalanuvchining shaxsiy havolasi mavjud: `https://t.me/jobtopuzbot?start=ref_${telegram_id}`;
