@@ -114,7 +114,7 @@ async function startBots() {
     console.log("🚀 JobTop Asosiy Bot va Moderatsiya Boti ishga tushirilmoqda...");
     await ensureBotIdentity();
     setInterval(ensureBotIdentity, 30 * 60 * 1000); // Auto-lock identity every 30 mins
-    startChannelScraperCron(3);
+    startChannelScraperCron(2);
     startDailyReportCron(modBot.api);
     let runner1 = run(bot);
     let runner2 = modBot !== bot ? run(modBot) : null;
