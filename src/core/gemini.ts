@@ -203,9 +203,9 @@ export async function parseJobWithGemini(
 QAT'IY QOIDALAR:
 1. XAVFSIZLIK: Agar e'lon 18+, intim, massaj, tungi klub, qimor/stavka (1xbet), moliyaviy piramida, noqonuniy yoki shubhali bo'lsa -> "isAppropriate": false va "isVacancy": false qilib qaytar.
 2. HUDUD: Faqat Toshkent shahri va Toshkent viloyatidagi ishlar qabul qilinadi. Boshqa viloyatlar (Farg'ona, Samarqand, Andijon va h.k.) -> "isVacancy": false.
-3. KUNLIK / BUYURTMA TO'LOV MEZONI: 
-   - QABUL QIL (isVacancy: true): Har qanday KUNLIK, KUNBAY, SOATBAY, SMENALIK yoki BIR MARTALIK BUYURTMA/BRIGADA ishlari (hatto maoshi 1 mln, 3 mln yoki 10 mln so'mlik katta loyiha/brigada ishi bo'lsa ham, agar to'lov kunlik yoki ish yakunida berilsa qabul qil!).
-   - BEKOR QIL (isVacancy: false): FAQAT doimiy 30 kunlik shtatdagi oylik ofis ishlari (har oy oxirida maosh kutadigan oylik savdo menejeri, oylik buxgalter, oylik doimiy xodimlar).
+3. KORPORATIV AGREGATORLAR VA OYLIK ISHLAR BLOKI:
+   - BEKOR QIL (isVacancy: false): Uzum Tezkor, Yandex Eats, Yandex Delivery kabi ommaviy korporativ kuryerlikka chaqiruvchi e'lonlar hamda 30 kunlik doimiy shtatdagi oylik ofis ishlari (buxgalter, menejer).
+   - QABUL QIL (isVacancy: true): Haqiqiy KUNLIK, KUNBAY, SOATBAY, SMENALIK yoki BIR MARTALIK BUYURTMA/BRIGADA ishlari (yuk tashish, mebel ko‘chirish, tozalash/uborka, stroyka, fura tushirish, 1 kunlik shaxsiy buyurtmalar).
 4. Ruxsat etilgan kategoriyalar (category): "Kuryer", "Xizmat", "Yuk tashish", "Tozalash".
 
 Kutilgan JSON sxemasi:

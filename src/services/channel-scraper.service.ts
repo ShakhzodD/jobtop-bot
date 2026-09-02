@@ -35,7 +35,8 @@ const NON_TASHKENT_REGIONS = [
 const MONTHLY_JOB_KEYWORDS = [
   "oyiga", "oylik maosh", "oylik ish", "stavka oylik", "rezyume", "rezume",
   "grafik dizayner", "sotuv operatori", "buxgalter", "menejer", "hr menejer",
-  "oylik to'lanadi", "oylik tolanadi", "oylik:", "oylik maosh:", "oylik xaqi"
+  "oylik to'lanadi", "oylik tolanadi", "oylik:", "oylik maosh:", "oylik xaqi",
+  "uzum tezkor", "uzum kuryer", "yandex eats", "yandex kuryer", "yandex delivery", "yandex eda", "yandex go kuryer"
 ];
 
 function isInvalidRegionOrMonthly(text: string): boolean {
