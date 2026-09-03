@@ -1,3 +1,4 @@
+import { startDailyDigestCron } from "./services/digest.service.js";
 import { rateLimitMiddleware, adminOnlyGuard } from "./core/security.js";
 import { touchUserActivity } from "./services/user.service.js";
 import { paymentReceiptConversation } from "./conversations/payment-receipt.conversation.js";
@@ -116,6 +117,7 @@ async function startBots() {
     setInterval(ensureBotIdentity, 30 * 60 * 1000); // Auto-lock identity every 30 mins
     startChannelScraperCron(2);
     startDailyReportCron(modBot.api);
+    startDailyDigestCron(bot.api);
     let runner1 = run(bot);
     let runner2 = modBot !== bot ? run(modBot) : null;
 

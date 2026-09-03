@@ -58,10 +58,13 @@ export async function publishJobToPublicChannel(api: Api, job: DBJob): Promise<n
       `${catTag} ${districtTag} ${genderTag} #KunlikIsh #Toshkent #JobTop`,
     ];
 
-    const keyboard = new InlineKeyboard().url(
-      "🤖 Bog‘lanish / Ariza topshirish",
-      `https://t.me/jobtopuzbot?start=job_${job.id}`
-    );
+    const shareText = encodeURIComponent(`⚡️ Toshkentda (${job.district}) yangi kunlik ish: "${job.title}" (${job.pay_amount.toLocaleString()} so‘m)! Birga boramizmi? 👇`);
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/jobtopuzbot?start=job_${job.id}`)}&text=${shareText}`;
+
+    const keyboard = new InlineKeyboard()
+      .url("🤖 Bog‘lanish / Ariza topshirish", `https://t.me/jobtopuzbot?start=job_${job.id}`)
+      .row()
+      .url("📤 Ushbu ishni do‘stga / guruhga ulashish", shareUrl);
 
     const sent = await api.sendMessage(PUBLIC_CHANNEL_USERNAME, lines.join("\n"), {
       parse_mode: "HTML",
