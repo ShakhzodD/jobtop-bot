@@ -132,17 +132,45 @@ async function startBots() {
       });
     }
 
-    // Auto-Recovery Watchdog every 60s
-    setInterval(() => {
+    // Proactive Rogue Webhook Guard (Har 2 daqiqada tekshirib, begona webhooklarni tozalaydi)
+    setInterval(async () => {
+      try {
+        const info = await bot.api.getWebhookInfo().catch(() => null);
+        if (info && info.url) {
+          console.warn(`⚠️ Begona webhook aniqlandi: ${info.url}. Avtomatik o'chirilmoqda...`);
+          await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
+          if (!runner1 || !runner1.isRunning()) {
+            runner1 = run(bot);
+          }
+        }
+        if (modBot !== bot) {
+          const modInfo = await modBot.api.getWebhookInfo().catch(() => null);
+          if (modInfo && modInfo.url) {
+            console.warn(`⚠️ Begona mod-webhook aniqlandi: ${modInfo.url}. Avtomatik o'chirilmoqda...`);
+            await modBot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
+            if (!runner2 || !runner2.isRunning()) {
+              runner2 = run(modBot);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Webhook guard xatosi:", e);
+      }
+    }, 2 * 60 * 1000);
+
+    // Auto-Recovery Watchdog every 30s
+    setInterval(async () => {
       if (runner1 && !runner1.isRunning()) {
-        console.warn("⚠️ Main Bot runner stopped. Restarting...");
+        console.warn("⚠️ Main Bot runner to'xtagan. Webhook tozalanib, qayta ishga tushirilmoqda...");
+        await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
         runner1 = run(bot);
       }
       if (modBot !== bot && (!runner2 || !runner2.isRunning())) {
-        console.warn("⚠️ Moderation Bot runner stopped. Restarting...");
+        console.warn("⚠️ Moderation Bot runner to'xtagan. Webhook tozalanib, qayta ishga tushirilmoqda...");
+        await modBot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
         runner2 = run(modBot);
       }
-    }, 60 * 1000);
+    }, 30 * 1000);
 
     const stopRunners = () => {
       if (runner1 && runner1.isRunning()) runner1.stop();

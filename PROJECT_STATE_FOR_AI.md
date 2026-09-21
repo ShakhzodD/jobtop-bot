@@ -1,8 +1,8 @@
 # 🚀 JobTop Platform — To‘liq Loyiha Arxitekturasi va Holati (Master Documentation for AI & Developers)
 
-> **Hujjat yangilangan sana:** 2026-08-24  
-> **Loyiha maqsadi:** O‘zbekiston (Toshkent) bo‘yicha kunlik, soatbay va tezkor ishlarni topish hamda xizmatlarga ishchi yollashning 2 tomonlama avtomatlashtirilgan marketplace ekotizimi.  
-> **Asosiy qoida:** Foydalanuvchilar bazasini hech qachon tozalamaslik (no truncate/wipe), barcha ma'lumotlar real-vaqtda saqlanadi. Til: O'zbek tili.
+> **Hujjat so‘nggi yangilangan sana:** 2026-09-17  
+> **Loyiha maqsadi:** O‘zbekiston (Toshkent shahri va viloyati) bo‘yicha KUNLIK, SOATBAY va TEZKOR jismoniy ishlarni topish hamda xizmatlarga ishchi yollashning 2 tomonlama avtomatlashtirilgan marketplace ekotizimi.  
+> **Asosiy qoida:** Foydalanuvchilar bazasini hech qachon tozalamaslik (no truncate/wipe), barcha ma'lumotlar real-vaqtda saqlanadi. 100% O'zbek tili.
 
 ---
 
@@ -11,7 +11,7 @@
 | Komponent | Tavsif | Havola / Token / Username |
 | :--- | :--- | :--- |
 | **🤖 Asosiy Bot** | Ishchilar va Buyurtmachilar uchun asosiy Telegram bot | `@jobtopuzbot` (`[PROTECTED_ENV_VARIABLE]`) |
-| **🛡 Moderatsiya Boti** | Admin paneli, Jonli statistika, Foydalanuvchilar brauzeri, E'lon moderatsiyasi | `@jobtopmoderationbot` (`[PROTECTED_ENV_VARIABLE]`) |
+| **🛡 Moderatsiya Boti** | Admin paneli, Jonli statistika, Broadcast, Foydalanuvchilar brauzeri, E'lon moderatsiyasi | `@jobtopmoderationbot` (`[PROTECTED_ENV_VARIABLE]`) |
 | **📢 Rasmiy Kanal** | Yangi e'lonlar avtomatik post bo'lib tushadigan ommaviy kanal | `@jobtopuzz` (Jobtop kunlik ish elonlari, ID: `-1003947859078`) |
 | **☁️ Backend Hosting** | 24/7 Railway Container Hosting (Deploy via GitHub) | Railway Project: `hospitable-rejoicing`, Service: `jobtop-bot` |
 | **🐙 GitHub Repo** | Bot manba kodi | `https://github.com/ShakhzodD/jobtop-bot.git` |
@@ -20,17 +20,39 @@
 
 ---
 
-## 🏗 2. Arxitektura va Texnologik Stek
+## 📊 2. Real-Vaqtdagi Jonli Statistika (2026-yil 17-sentyabr holatiga)
+
+* **Jami ro‘yxatdan o‘tgan foydalanuvchilar:** **29 nafar**
+* **Telefon raqami tasdiqlanganlar:** **25 nafar (86.2%)** *(profilini to‘liq to‘ldirgan)*
+* **Jami ishlar bazasi:** **272 ta ish** *(shundan **258 tasi faol/published** holatda)*
+* **Kategoriya taqsimoti:**
+  * 🛠 Xizmat & Usta yordamchisi: ~140 ta
+  * 🧹 Tozalash & Uborka: ~75 ta
+  * 📦 Yuk tashish & Fura/Mebel: ~50 ta
+* **Eng faol sodiq foydalanuvchilar (Retention):**
+  * **Mamajonov** (*Beruniy tumani*) — Ketma-ket 25+ kundan beri deyarli har kuni faol
+  * **Ibragimov Begzod** (*Yunusobod*) — Profil to‘ldirgan, 2 yil tajriba
+  * **Karamanova Oygul** (*Chilonzor*) — Tozalash/uborka
+  * **Oxunjon, Azimjon, Shohruh Mirzayev, Nuriddin Xoliqov, Zairov Komol**
+
+---
+
+## 🏗 3. Arxitektura va Texnologik Stek
 
 * **Runtime & Til:** Node.js v20+ / TypeScript / ESM.
 * **Telegram Framework:** `grammY` + `@grammyjs/conversations` + `@grammyjs/runner` + `@grammyjs/types`.
 * **AI & Parsing:** Google Gemini AI Flash (`@google/genai` / `gemini-2.5-flash` / `gemini-3.5-flash`) + Smart Regex Fallback.
+* **Xavfsizlik & Anti-DDoS:** Sliding-window in-memory rate limiter (5 req/2s), Admin-only guard, HTML sanitization, Prompt-injection shield.
+* **Avtomatik Skronlar:**
+  * Har 2 daqiqada: 32 ta Toshkent guruhlaridan kunlik ishlarni skanerlash.
+  * Har kuni soat 08:30 da: Smart Morning Digest (barcha foydalanuvchilarga top-3 ish).
+  * Har 30 daqiqada: Bot identity auto-lock va runner auto-recovery watchdog.
 * **Database & Auth:** Supabase Client (`@supabase/supabase-js`).
 * **Deployment:** Railway Nixpacks container, 24/7 background worker, Healthcheck server (`0.0.0.0:8080`).
 
 ---
 
-## 🗄 3. Ma'lumotlar Bazasi Sxemasi (Supabase Tables)
+## 🗄 4. Ma'lumotlar Bazasi Sxemasi (Supabase Tables)
 
 ### `users`
 * `id` (UUID, Primary Key)
@@ -46,190 +68,95 @@
 * `worker_categories` (TEXT[], default: `[]`) — Qiziqqan sohalari (`Yuk tashish`, `Tozalash`, `Kuryer`, `Xizmat`)
 * `active_role` (TEXT) — `'worker'` yoki `'employer'`
 * `bot_state` (JSONB) — Moslashuvchan metadata:
-  * `gender`: `'male'` | `'female'` (Ishchining jinsi)
+  * `gender`: `'male'` | `'female'`
   * `is_pro`: boolean (PRO akkaunt holati)
-  * `pro_plan`: string (`🥉 1 haftalik PRO`, `🥈 1 oylik PRO`, `🥇 3 oylik PRO`)
-  * `pro_until`: ISO Timestamp (PRO tugash vaqti)
-  * `last_active_at`: ISO Timestamp (Oxirgi marta botdan foydalangan vaqti)
-* `created_at` (TIMESTAMPTZ)
+  * `pro_until`: string (PRO tugash vaqti)
+  * `referral_count`: number
+  * `referred_users`: number[]
+  * `last_active_at`: timestamp
 
 ### `jobs`
 * `id` (UUID, Primary Key)
-* `employer_id` (UUID, Nullable, References `users.id`) — Agar botda buyurtmachi yaratgan bo'lsa
-* `category` (TEXT) — `'Yuk tashish'`, `'Tozalash'`, `'Kuryer'`, `'Xizmat'`
-* `title` (TEXT) — E'lon sarlavhasi
-* `description` (TEXT) — To'liq matn va toza tavsif (hech qanday manba havolalarisiz)
-* `district` (TEXT) — Tuman nomi
-* `address` (TEXT) — Aniq manzil yoki mo'ljal
-* `starts_at` (TIMESTAMPTZ) — Boshlanish vaqti
-* `ends_at` (TIMESTAMPTZ) — Tugash vaqti
-* `pay_amount` (NUMERIC) — To'lanadigan haq (so'mda)
-* `openings` (INT) — Kerakli ishchilar soni
-* `status` (TEXT) — `'published'` | `'filled'` | `'completed'` | `'cancelled'` | `'pending_moderation'`
-* `source_name` (TEXT, Nullable) — Import manbasi
+* `title` (TEXT) — Ish sarlavhasi
+* `description` (TEXT) — Ish tavsifi va aloqa ma'lumotlari
+* `pay_amount` (NUMERIC) — Kunlik ish haqi
+* `district` (TEXT) — Tuman (faqat Toshkent shahri va viloyati)
+* `category` (TEXT) — `Xizmat`, `Yuk tashish`, `Tozalash`, `Kuryerlik`
+* `status` (TEXT) — `'published'`, `'active'`, `'cancelled'`, `'filled'`
+* `source_name` (TEXT) — Manba (Telegram kanal yoki OLX.uz)
 * `source_url` (TEXT, Nullable)
 * `created_at` (TIMESTAMPTZ)
 
-### `applications`
-* `id` (UUID, Primary Key)
-* `job_id` (UUID, References `jobs.id`)
-* `worker_id` (UUID, References `users.id`)
-* `status` (TEXT) — `'pending'` | `'selected'` | `'rejected'` | `'withdrawn'`
-* `party_size` (INT, default: 1) — Jamoa/Brigada hajmi (1-4 kishi)
-* `message` (TEXT, Nullable)
-* `created_at` (TIMESTAMPTZ)
+---
 
-### `reviews`
-* `id` (UUID, Primary Key)
-* `reviewer_id` (UUID, References `users.id`)
-* `reviewee_id` (UUID, References `users.id`)
-* `job_id` (UUID, References `jobs.id`)
-* `rating` (INT, 1-5)
-* `comment` (TEXT, Nullable)
-* `created_at` (TIMESTAMPTZ)
+## ⚡️ 5. Amalga Oshirilgan Asosiy Modullar
 
-### `ai_job_imports`
-* `id` (UUID, Primary Key)
-* `content_hash` (TEXT, Unique) — Dublikatlarni oldini oluvchi sha256 xesh
-* `source_name` (TEXT)
-* `source_url` (TEXT, Nullable)
-* `source_external_id` (TEXT, Nullable)
-* `raw_text` (TEXT)
-* `parsed_job` (JSONB)
-* `confidence` (FLOAT)
-* `status` (TEXT)
-* `job_id` (UUID, Nullable)
-* `created_at` (TIMESTAMPTZ)
+1. **🛡 Xavfsizlik Qatlami (`core/security.ts`):**
+   - Sliding-window rate limiter — flood va spamdan himoya;
+   - Strict `adminOnlyGuard` — moderatsiya botiga begona kirishini 100% to'sadi;
+   - HTML Sanitizer va Prompt Injection Shield.
+2. **🤖 2 Daqiqalik Avtomatik Skraper (`services/channel-scraper.service.ts`):**
+   - 32 ta tasdiqlangan Toshkent guruhlari va kanallarini doimiy kuzatib boradi;
+   - Qat'iy Toshkent-only filtr: Boshqa viloyatlar, oylik 30 kunlik ofis ishlari va korporativ agregatorlar (Uzum Tezkor, Yandex Eats) qat'iy bloklanadi.
+3. **📢 Avto-Kanal Publisher (`services/channel-publisher.service.ts`):**
+   - Har bir e'lon ostida 2 ta yuqori konversiyali virusli tugma:
+     - `[🤖 Bog‘lanish / Ariza topshirish]`
+     - `[📤 Ushbu ishni do‘stga / guruhga ulashish]`
+4. **☀️ Smart Morning Digest (`services/digest.service.ts`):**
+   - Har kuni ertalab soat 08:30 da barcha 29 ta ro'yxatdan o'tgan foydalanuvchiga kunning eng yuqori haq to'lanadigan 3 ta sara ishi bitta chiroyli xabarda yetkaziladi.
+5. **📍 Tumanlar Bo'yicha Tezkor Xabarnomalar (District Geo-Alerts):**
+   - Ishchi o'z tumanini tanlaganida (masalan, Chilonzor yoki Yunusobod), o'sha tumanda yangi ish chiqishi bilan darhol VIP Push xabar boradi.
+6. **🎁 "3 ta Do'st = 1 Hafta Bepul PRO" Referal Dvigateli (`services/user.service.ts`):**
+   - 3 ta do'st taklif qilgan foydalanuvchiga tizim avtomatik 168 soatlik PRO yoqadi va muddati tugagach avtomat o'chiradi.
+7. **📢 Moderatsiya Botida Ommaviy Xabar (/broadcast) Paneli (`handlers/admin.handler.ts`):**
+   - Adminga barcha foydalanuvchilarga bir zumda ommaviy e'lon yuborish imkonini beradi.
 
 ---
 
-## ⚡️ 4. Amalga Oshirilgan Asosiy Funksional Tizimlar
+## 🎨 6. Marketing va Instagram Reels Strategiyasi
 
-### A. 35 ta Kanalni Avtomatik Skan Qiluvchi Scraper Engine (`channel-scraper.service.ts`)
-* Har **3 daqiqada** Toshkentdagi 35 ta eng yirik va faol kunlik ish kanallarini (`t.me/s/...`) tekshiradi:
-  `@kunlikishlaruz24`, `@talabalar_uchun_ishlar`, `@toshkentda_kunlik_ishlar`, `@toshkent_ish_elonlari`, `@kunlik_ishlar_rasmiy`, `@talabalar_uchun_ish`, `@kunlik_ishlar_toshkent`, `@talabalar_ish_bor`, `@toshkentda_ish_bor`, `@toshkent_ishlari`, `@toshkentda_ish`, `@toshkent_ish_bozor`, `@ish_bor_toshkentda`, `@talabalar_uchun_vakansiya`, `@toshkent_kunlik_ish`, `@kunlik_ishlar_toshkent_24`, `@rabota_v_tashkente`, `@Kunlik_ishlar_kunbayToshkentda`, `@kunlik_ishlar_toshkentuz`, `@kunlik_ish_uz`, `@kunlik_ish_toshkent`, `@toshkent_kunlik_ishlar`, `@mardikor_bozor_toshkent`.
-* **Xavfsizlik, Hudud va Oylik Ishlar Qat'iy Filtri:**
-  - **Oylik ishlar bloklanishi:** `oylik`, `oyiga`, `rezyume`, `buxgalter`, `dizayner` va 1.2 mln so'mdan yuqori maoshli oylik ishlar avtomatik bekor qilinadi;
-  - **Boshqa viloyatlar bloklanishi:** Farg'ona, Marg'ilon, Andijon, Samarqand va boshqa viloyat e'lonlari filtrlanadi, FAQAT Toshkent shahri va viloyati qoladi;
-  - **18+ va spam filtri:** Qimor, stavka, massaj, intim, piramida xabarlari to'liq filtrlanadi.
-* **3 Bosqichli Dublikatga Qarshi Tizim (Deduplication):**
-  1. Content hash tekshiruvi;
-  2. 48 soatlik barcha e'lonlar bilan telefon raqam va telegram username solishtiruvi;
-  3. Jaccard matn o'xshashlik tahlili (`> 0.55`).
-* **Avtomatik Yopilish Tizimi (Auto-Close):** Kanallarda `@toldi`, `TO'LDI`, `To‘ldi`, `odam bo‘ldi`, `odam topildi`, `ish yopildi`, `band qilindi` xabarlari chiqishi bilanoq, tizim o'sha e'lonni bazadan topib statusini `'filled'` ga o'tkazadi va umumiy qidiruv lentasidan darhol yashiradi!
-
-### B. Rasmiy Kanalga Avto-Broadcaster (`@jobtopuzz` — `channel-publisher.service.ts`)
-* Har qanday yangi tasdiqlangan yoki skreperdan o'tgan e'lon **o'sha soniyaning o'zida `@jobtopuzz` kanaliga post qilinadi**.
-* **Post tarkibi:** Sarlavha, Kategoriya, Jins talabi (`👤 Kimlar uchun: 👨 Erkaklar / 👩 Ayollar / 👥 Barchaga`), Tuman, Manzil, Maosh, Ishchilar soni, Tavsif, Heshteglar (`#YukTashish`, `#Tozalash`, `#ErkaklarUchun`, `#AyollarUchun`, `#Toshkent`, `#JobTop`).
-* **1-Bosishda Botga O'tish Tugmasi:** `[🤖 Bog‘lanish / Ariza topshirish]` tugmasi to'g'ridan-to'g'ri `https://t.me/jobtopuzbot?start=job_${job.id}` havolasi bilan ulanadi.
-
-### C. Toshkent Tumanlari Bo'yicha Qidiruv va Smart Geolokatsiya (`TASHKENT_DISTRICTS`)
-* Toshkentning **12 ta tumani** to'liq integratsiya qilindi: *Chilonzor, Yunusobod, Mirzo Ulug‘bek, Mirobod, Shayxontohur, Yakkasaroy, Olmazor, Uchtepa, Sergeli, Yangihayot, Bektemir, Yashnobod*.
-* **Jonli Sonlar bilan Tumanlar Menyusi (`worker:districts:menu`):** `📍 Chilonzor (6)`, `📍 Yunusobod (4)`, `📍 Mirobod (3)` va h.k.
-* **Shaxsiy Tuman Tavsiyasi:** Agar ishchi profilida tuman kiritilgan bo'lsa, menyuda eng yuqorida `📍 Mening tumanim: Chilonzor` chiqadi va 1 bosishda o'z uyiga yaqin ishlarni ochadi.
-* **Smart District Push:** Yangi e'lon chiqqanda o'sha tumandagi ishchilarga: `📍 Sizning tumaningizda (Chilonzor) yangi ish!` deb maqsadli xabarnoma yuboriladi.
-
-### D. Jins Bo'yicha Filtrlash va Smart Push (`detectJobGender`)
-* Sun'iy intellekt har bir ishni `male` (erkaklar), `female` (ayollar) yoki `any` (barchaga) toifasiga ajratadi.
-* Ishchi profilida `👨 Erkak (Yigit)` yoki `👩 Ayol (Qiz bola)` jinsi saqlanadi.
-* Yangi e'lon chiqqanda Push-xabar **faqat o'sha jinsdagi ishchilarga maqsadli (Smart Push)** yuboriladi (ayollarga og'ir yuk kabi keraksiz xabarlar bormaydi).
-* Qidiruv lentasida `👨 Erkaklar uchun` va `👩 Ayollar uchun` alohida filtr tugmalari mavjud.
-
-### E. 2 Tomonlama Onboarding & "Qanday ishlaydi?" Yo'riqnomasi
-* Ro'yxatdan o'tishda aniq 2 ta tanlov:
-  * `👷 Ish qidiruvchiman (Pul ishlash)`
-  * `💼 Buyurtmachiman (Ishchi / Usta kerak)`
-* `❓ Qanday ishlaydi?` bo'limi foydalanuvchining roliga qarab shaxsiy 3 qadamli yo'riqnomani ko'rsatadi:
-  * **Ishchilar uchun:** Ish ko'rish ➡️ Tanlash ➡️ Bog'lanish;
-  * **Buyurtmachilar / Uy egalari uchun:** Ovozli/matnli e'lon berish ➡️ AI tahlili ➡️ Ustalarni tanlash.
-
-### F. Moderatsiya Boti (`@jobtopmoderationbot` — `admin.handler.ts`)
-* **`👥 Foydalanuvchilar`**: Barcha foydalanuvchilarni interaktiv sahifalash (pagination) va rol filtrlari (`Hammasi`, `Ishchilar`, `Ish beruvchilar`) bilan ko'rish, Telegram profiliga to'g'ridan-to'g'ri havola.
-* **`📊 Statistika`**: Real-vaqtli tahlil (Jami userlar, Ishchilar, Ish beruvchilar, 24 soatlik oqim, Faol e'lonlar, Moderatsiyadagi ishlar, Sohalar ulushi, Arizalar soni, Ishga joylashish konversiyasi).
-* **To'g'ridan-to'g'ri E'lon va Veb Havola Importi (Web URL Importer)**: Admin istalgan guruhdan matnni forward qilsa yoki internetdagi sayt havolasini (OLX, Ish.uz, Ustabor, Glotr, Facebook) tashlasa, AI uni 1 soniyada to'liq o'qib, tahlil qilib tasdiqlash uchun chiqaradi.
-* **Ertalabki Avto-Hisobot**: Har kuni soat **09:00 da** adminga kunlik hisobot yuboriladi.
-
-
-
-### I. 📍 "Mening Tumanim & Tezkor Xabarnomalar" (District Geo-Alerts Tizimi)
-* **Qanday ishlaydi:**
-  * Ishchilar asosiy menyusida: `📍 Mening tumanim & Xabarnomalar` tugmasi;
-  * Foydalanuvchi Toshkentning 12 ta tumanidan birini (Chilonzor, Yunusobod, Sergeli, Mirzo Ulug‘bek...) yoki "Barcha tumanlar"ni tanlaydi;
-  * Tanlangan tuman `users.district` va `users.bot_state.district` da darhol saqlanadi;
-  * O‘sha tumanda har qanday yangi kunlik ish tasdiqlanishi yoki skreperdan o‘tishi bilan — tizim foydalanuvchiga 1-soniyada:
-    `📍 SIZNING TUMANINGIZDA (Chilonzor) YANGI ISH CHIQDI! 🔥`
-    matni, ish haqi, to‘liq tavsifi, `[🔍 E’lonni ko‘rish]` va `[📤 Do‘stga yuborish]` tugmalari bilan shaxsiy VIP Push-xabarnoma yuboradi!
-
-### H. 🎁 "3 ta Do‘st = 1 Haftalik Bepul PRO" Virusli Referral Dvigateli (`user.service.ts` & `start.handler.ts`)
-* **Avtomatik Mukofotlash Mexanizmi:**
-  * Har bir foydalanuvchining shaxsiy havolasi mavjud: `https://t.me/jobtopuzbot?start=ref_${telegram_id}`;
-  * Foydalanuvchi taklif qilgan do‘stlar soni `users.bot_state.referred_users` va `referral_count` da saqlanadi;
-  * Har **3 ta haqiqiy do‘st** qo‘shilganda — tizim avtomatik ravishda **aniq 7 kunlik (168 soat)** ⭐️ PRO Akkaunt yoqadi (`pro_until = now + 7 days`);
-  * 7 kun (1 hafta) o‘tishi bilan — tizim `isUserPro` orqali obunani millisekundigacha **avtomatik o‘chiradi (deactivate)**!
-  * Foydalanuvchiga real-vaqtda bayramona tabrik xabari va PRO amal qilish muddati yuboriladi;
-* **Interaktiv Taklif Menyusi (`👥 Sherikni taklif qilish`):**
-  * Foydalanuvchi o‘z takliflar sonini (`[ 2 / 3 ta ]`) va qolgan do‘stlar sonini ko‘radi;
-  * `[📤 1 Bosishda Do‘stlarga / Guruhga Ulashish]` tugmasi Telegram chat tanlagichini tayyor virusli xabar bilan ochadi;
-* **Har bir E’lon Ostida "📤 Do‘stga / Guruhga Yuborish" Tugmasi:**
-  * E’lon kartochkalarida 1 bosishda do‘stlarga tashlash tugmasi orqali brigadalar birgalikda ishga chaqiriladi;
-* **Admin Moderatsiya Botida Jonli Referral Reytingi (`📊 Statistika`):**
-  * Kim nechta odam taklif qilganini to‘liq ro‘yxat bilan ko‘rsatadi:
-    `1. Islom Barotov (@Islomjon002007) — 4 ta do‘st (⭐️ PRO faol)`
-    `2. Azimjon (@AzimjonFx_000) — 3 ta do‘st (⭐️ PRO faol)`
-
-### G. PRO Akkaunt va Monetizatsiya Tizimi (`payment.service.ts`)
-* Ta'riflar: 🥉 1 hafta (29 000 so'm), 🥈 1 oy (79 000 so'm), 🥇 3 oy (189 000 so'm).
-* To'lov: Humo / Milliy Bank (`9860350149328659`, SHAHZOD URINBOYEV) + Click / Payme havolalari.
-* PRO ustalarga arizalarda 1-o'rinda chiqish, ko'k tasdiqlangan belgi va yangi ishlarga tezkor xabarnomalar beriladi.
+1. **1-Format: "Top-3 Noodatiy Kunlik Ishlar" (Eng yuqori qiziqish):**
+   - Hook: *"Toshkentda 1 kunga 650 000 so‘m to‘laydigan qanaqa ishlar borligini bilasizmi?"*
+   - Real e'lonlar: Chinni buyumlari (200k), Mebel sex (250k), Qo'yxona tozalash (650k).
+2. **2-Format: "Real Eksperiment" (1 kunda 300 000 so'm topish mumkinmi?):**
+   - Jonli sinov, botdan ish topish va kechqurun naqd pulni ko'rsatish.
+3. **3-Format: "Student Layfxaki" (Sentyabr talabalari uchun):**
+   - Darsdan keyingi erkin grafikdagi yengil ishlar.
 
 ---
 
-## 🎨 5. Marketing, Reklama va Tarqatish Materiallari
-
-1. **Reels & TikTok Video Plani (25 soniya):**
-   * Mavzusi: *"Toshkentda 1 kunda 300 000 so‘m naqd pul ishlash siri"* va *"Uyni tozalashga 10 soniyada ishchi topish"*.
-   * AI Ovoz (ElevenLabs): O'zbekcha professional diktor matnlari tayyorlandi.
-   * AI Video Kadrlar (Kling AI / Runway): Tayyor inglizcha 4K promptlar saqlandi.
-2. **Instagram 3D Storytelling Karuseli (2 Slayd):**
-   * 1-Slayd: Tartibsizlik ichida boshi qotib turgan uy egasi (*"Qayerdan ishchi topsam ekan? 🤔"*).
-   * 2-Slayd: Divanda xotirjam o'tirib, `@jobtopuzbot` ga 10 soniyalik ovozli e'lon berishi va tayyor ustalar arizalari kelishi.
-3. **Telegram Guruhlari uchun Tayyor Matnlar:**
-   * Talabalar guruhlari (TATU, Politex, O'zMU, Nizomiy) uchun;
-   * Ishchilar va Ustalar guruhlari uchun;
-   * Buyurtmachilar va Uy egalari (Remont, Arenda) uchun.
-
----
-
-## 📁 6. Kod Fayllari Xaritasi (`telegrambot/src/`)
+## 📁 7. Kod Fayllari Xaritasi (`telegrambot/src/`)
 
 ```
 telegrambot/
 ├── src/
-│   ├── bot.ts                                  # Asosiy bot runner, middleware (touchUserActivity), healthcheck server
+│   ├── bot.ts                                  # Asosiy bot runner, middleware, 08:30 Digest cron, watchdog
 │   ├── config/
 │   │   └── env.ts                              # Muhit o'zgaruvchilari (Tokens, API Keys, DB config)
 │   ├── core/
 │   │   ├── bots.ts                             # MainBot va ModBot instansiyalari
-│   │   ├── gemini.ts                           # Gemini AI job parser, TASHKENT_DISTRICTS va xavfsizlik filtri
+│   │   ├── security.ts                         # Rate limiter, admin guard, prompt shield, sanitizer
+│   │   ├── gemini.ts                           # Gemini AI job parser, TASHKENT_DISTRICTS va filtrlash
 │   │   └── supabase.ts                         # Supabase database client
 │   ├── services/
-│   │   ├── web-scraper.service.ts              # Veb-saytlar (OLX, Ish.uz, Ustabor) scraper va URL importeri
-│   │   ├── user.service.ts                     # User CRUD, profillar, retention va gender boshqaruvi
-│   │   ├── job.service.ts                      # E'lonlar CRUD, getDistrictJobCounts, gender klassifikatori (detectJobGender)
-│   │   ├── channel-scraper.service.ts          # 23 ta kanalni 3 minutlik skaneri, dublikat va auto-close filtri
-│   │   ├── channel-publisher.service.ts        # @jobtopuzz rasmiy kanaliga avto-post yuboruvchi
-│   │   ├── moderation.service.ts               # Moderatsiya, admin notifikatsiyalari, Smart District & Gender Push
-│   │   ├── application.service.ts              # Arizalar, tanlash (selectCandidate), avto-to'lish (filled)
-│   │   ├── payment.service.ts                  # PRO ta'riflar, to'lov kartasi, Click/Payme integratsiyasi
-│   │   └── review.service.ts                   # Reyting va yulduzlar
+│   │   ├── digest.service.ts                   # 08:30 AM Smart Morning Job Digest cron
+│   │   ├── web-scraper.service.ts              # OLX, Ish.uz, Ustabor scraper va URL importeri
+│   │   ├── user.service.ts                     # User CRUD, referral dvigateli, retention va pro muddatlari
+│   │   ├── job.service.ts                      # E'lonlar CRUD, getDistrictJobCounts, maosh saralash
+│   │   ├── channel-scraper.service.ts          # 32 ta kanalni 2 minutlik skaneri, qat'iy Toshkent-only filtr
+│   │   ├── channel-publisher.service.ts        # @jobtopuzz rasmiy kanaliga dual viral tugmali avto-post
+│   │   ├── moderation.service.ts               # Moderatsiya, admin notifikatsiyalari, District Push
+│   │   ├── application.service.ts              # Arizalar boshqaruvi
+│   │   ├── payment.service.ts                  # PRO ta'riflar, to'lov kartasi, Click/Payme
+│   │   └── review.service.ts                   # Reyting va baholash
 │   ├── handlers/
-│   │   ├── start.handler.ts                    # /start, /help, deeplinklar (job_<id>, ref_<id>), 2 tomonlama yo'riqnoma
-│   │   ├── worker.handler.ts                   # Ishchi menyusi, tumanlar va jins bo'yicha qidiruv, PRO menyusi, profil
-│   │   ├── employer.handler.ts                 # Buyurtmachi menyusi, e'lonlarni boshqarish, nomzodlarni tanlash
-│   │   └── admin.handler.ts                    # Moderatsiya boti menyusi, Foydalanuvchilar brauzeri, Statistika, Forward importer
+│   │   ├── start.handler.ts                    # /start, /help, deeplinklar, 2 tomonlama yo'riqnoma
+│   │   ├── worker.handler.ts                   # Ishchi menyusi, tumanlar va xabarnomalar, 1-tap do'stga ulashish
+│   │   ├── employer.handler.ts                 # Buyurtmachi menyusi, nomzodlarni tanlash
+│   │   └── admin.handler.ts                    # Moderatsiya boti, /broadcast, jonli statistika, watchdog
 │   ├── conversations/
 │   │   ├── create-job.conversation.ts          # Ish beruvchi e'lon yaratish suhbati (AI text/audio)
-│   │   ├── edit-profile.conversation.ts        # Ishchi profilini to'ldirish (Ism, Jins, Tuman, Tajriba, Soha, Haqida)
+│   │   ├── edit-profile.conversation.ts        # Ishchi profilini to'ldirish
 │   │   └── feedback.conversation.ts            # Murojaat va takliflar
 │   └── keyboards/
 │       ├── auth.js                             # Rol tanlash va kontakt so'rash tugmalari
@@ -237,17 +164,4 @@ telegrambot/
 ```
 
 ---
-
-## 🚀 7. Keyingi Rivojlanish Bosqichlari (Next Steps & Roadmap)
-
-1. **📢 Moderatsiya Botida Ommaviy Xabar (Broadcast / Rassilka) Paneli:**
-   * Adminga bitta tugma orqali barcha ro'yxatdan o'tgan foydalanuvchilarga xabar/reklama yuborish imkoniyatini qo'shish.
-2. **💰 Maosh Bo'yicha Filtrlash (`🔥 300 000+ so‘mlik ishlar`):**
-   * Yuqori haq to'lanadigan ishlarni saralash.
-3. **🎁 Do'stni taklif qilganga Bepul PRO Sovg'a Qilish (Referral Gamifikatsiya):**
-   * 3 ta do'stini olib kelgan foydalanuvchiga avtomatik 1 haftalik PRO berish.
-4. **Telegram UserBot (Method 2 — Supergroup Listener):**
-   * `@kunlikishlartoshkent1_chat` kabi ochiq/yopiq superguruhlardan ham e'lonlarni 24/7 avtomat o'qiydigan MTProto tinglovchisini ulash.
-
----
-*Ushbu hujjat har qanday yangi dasturchi yoki AI agent JobTop tizimini darhol to'liq tushunib, ishni davom ettirishi uchun barcha arxitektura, yangilanishlar va rejalarni to'liq qamrab olgan.*
+*Ushbu hujjat JobTop tizimining eng so‘nggi holati, arxitekturasi va strategiyasini to‘liq aks ettiradi.*
