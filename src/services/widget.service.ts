@@ -246,3 +246,4 @@ export async function handleWidgetQuery(
     await answerWidgetQuery(bot, query.id, "Xatolik yuz berdi").catch(() => {});
   }
 }
+
