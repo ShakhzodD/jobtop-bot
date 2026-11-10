@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import { MyContext } from "../types/context.js";
 import { DBJob, getJobById } from "./job.service.js";
 import { getUserByTelegramId } from "./user.service.js";
@@ -156,13 +156,34 @@ export async function sendJobAsWidget(
   job: DBJob
 ) {
   const html = buildJobWidgetHtml(job);
-  const caption = `📋 <b>${job.title}</b>\n💰 ${job.pay_amount.toLocaleString()} so‘m | 📍 ${job.district}\n\n<i>📱 Yuqoridagi interaktiv HTML vidjet orqali to‘g‘ridan-to‘g‘ri ariza topshirishingiz mumkin.</i>`;
+  const contacts = extractContacts(job.description);
+
+  const caption = [
+    `📋 <b>${job.title}</b>`,
+    `💰 <b>Ish haqi:</b> ${job.pay_amount.toLocaleString()} so‘m`,
+    `📍 <b>Manzil:</b> ${job.district}, ${job.address}`,
+    `👥 <b>Bo‘sh o‘rinlar:</b> ${job.openings} ta`,
+    "",
+    "<i>📱 Agar Telegram ilovangiz eng so‘nggi versiyaga yangilangan bo‘lsa, xabar ichida interaktiv HTML vidjet ko‘rinadi. Boshqa holatda quyidagi tugmalar orqali foydalanishingiz mumkin:</i>",
+  ].join("\n");
+
+  const kb = new InlineKeyboard();
+  if (contacts.phone || contacts.tg) {
+    if (contacts.tg) {
+      kb.url("💬 Telegramdan yozish", "https://t.me/" + contacts.tg.replace("@", "")).row();
+    }
+    kb.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
+  } else {
+    kb.text("✋ Ariza yuborish", `worker:apply:${job.id}:all:0`).row();
+  }
+  kb.text("🔍 Barcha ishlarni ko‘rish", "worker:feed:all:0");
 
   return await sendWidgetMessage(bot, chatId, html, {
     caption,
     parseMode: "HTML",
     allowQueries: true,
     chatData: JSON.stringify({ jobId: job.id, applied: false }),
+    replyMarkup: kb,
   });
 }
 

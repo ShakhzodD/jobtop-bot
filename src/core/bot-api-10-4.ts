@@ -22,6 +22,7 @@ export interface SendWidgetOptions {
   chatData?: string;
   disableNotification?: boolean;
   protectContent?: boolean;
+  replyMarkup?: any;
 }
 
 export interface WidgetQueryUpdate {
@@ -76,6 +77,7 @@ export async function sendWidgetMessage(
         chat_data: options?.chatData,
         disable_notification: options?.disableNotification,
         protect_content: options?.protectContent,
+        reply_markup: options?.replyMarkup,
       });
     }
 
@@ -93,6 +95,7 @@ export async function sendWidgetMessage(
         is_shared: options?.isShared ?? false,
         public_data: options?.publicData,
         chat_data: options?.chatData,
+        reply_markup: options?.replyMarkup,
       },
     });
   } catch (err: any) {
