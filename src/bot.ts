@@ -114,6 +114,33 @@ async function ensureBotIdentity() {
   }
 }
 
+const ALL_ALLOWED_UPDATES = [
+  "message",
+  "edited_message",
+  "channel_post",
+  "edited_channel_post",
+  "inline_query",
+  "chosen_inline_result",
+  "callback_query",
+  "shipping_query",
+  "pre_checkout_query",
+  "poll",
+  "poll_answer",
+  "my_chat_member",
+  "chat_member",
+  "chat_join_request",
+  "chat_boost",
+  "removed_chat_boost",
+];
+
+const runnerOptions = {
+  runner: {
+    fetch: {
+      allowed_updates: ALL_ALLOWED_UPDATES as any,
+    },
+  },
+};
+
 async function startBots() {
   try {
     await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
@@ -127,8 +154,8 @@ async function startBots() {
     startChannelScraperCron(2);
     startDailyReportCron(modBot.api);
     startDailyDigestCron(bot.api);
-    let runner1 = run(bot);
-    let runner2 = modBot !== bot ? run(modBot) : null;
+    let runner1 = run(bot, runnerOptions);
+    let runner2 = modBot !== bot ? run(modBot, runnerOptions) : null;
 
     if (runner1) {
       runner1.task()?.catch((err) => {
@@ -149,7 +176,7 @@ async function startBots() {
           console.warn(`⚠️ Begona webhook aniqlandi: ${info.url}. Avtomatik o'chirilmoqda...`);
           await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
           if (!runner1 || !runner1.isRunning()) {
-            runner1 = run(bot);
+            runner1 = run(bot, runnerOptions);
           }
         }
         if (modBot !== bot) {
@@ -158,7 +185,7 @@ async function startBots() {
             console.warn(`⚠️ Begona mod-webhook aniqlandi: ${modInfo.url}. Avtomatik o'chirilmoqda...`);
             await modBot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
             if (!runner2 || !runner2.isRunning()) {
-              runner2 = run(modBot);
+              runner2 = run(modBot, runnerOptions);
             }
           }
         }
@@ -172,12 +199,12 @@ async function startBots() {
       if (runner1 && !runner1.isRunning()) {
         console.warn("⚠️ Main Bot runner to'xtagan. Webhook tozalanib, qayta ishga tushirilmoqda...");
         await bot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
-        runner1 = run(bot);
+        runner1 = run(bot, runnerOptions);
       }
       if (modBot !== bot && (!runner2 || !runner2.isRunning())) {
         console.warn("⚠️ Moderation Bot runner to'xtagan. Webhook tozalanib, qayta ishga tushirilmoqda...");
         await modBot.api.deleteWebhook({ drop_pending_updates: false }).catch(() => {});
-        runner2 = run(modBot);
+        runner2 = run(modBot, runnerOptions);
       }
     }, 30 * 1000);
 
