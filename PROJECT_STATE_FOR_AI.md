@@ -110,6 +110,11 @@
    - 3 ta do'st taklif qilgan foydalanuvchiga tizim avtomatik 168 soatlik PRO yoqadi va muddati tugagach avtomat o'chiradi.
 7. **📢 Moderatsiya Botida Ommaviy Xabar (/broadcast) Paneli (`handlers/admin.handler.ts`):**
    - Adminga barcha foydalanuvchilarga bir zumda ommaviy e'lon yuborish imkonini beradi.
+8. **📱 Telegram Bot API 10.4 Integratsiyasi (`core/bot-api-10-4.ts`, `services/widget.service.ts`):**
+   - **Native HTML Widgets (`sendWidget`, `answerWidgetQuery`, `editMessageWidgetData`):** Xabar pufagi ichida to‘liq reaktiv HTML vidjet kartochkasi. Foydalanuvchi "⚡️ Ariza berish" yoki "📞 Kontakt" tugmasini bosganda xabarni o‘chirmasdan, vidjet ichida real-vaqtda javob qaytaradi va holatni yangilaydi.
+   - **Ephemeral Messages (`ephemeral_message_parameters`):** "Bog‘lanish ma’lumotlari" bosilganda faqat o‘sha foydalanuvchining o‘zigagina ko‘rinadigan maxfiy shaxsiy xabar yuboriladi.
+   - **Native Disabled Buttons (`InlineKeyboardButton.disabled`):** Bo‘sh o‘rinlar qolmagan yoki ariza topshirilgan holatlarda tugmalar nofaol qilib qo‘yiladi.
+   - **/widget komandasi:** Foydalanuvchi yoki admin eng so‘nggi ishni darhol interaktiv vidjet formatida sinab ko‘rishi mumkin.
 
 ---
 

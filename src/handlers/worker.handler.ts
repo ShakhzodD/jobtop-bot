@@ -45,6 +45,8 @@ import {
 import { getUserRating } from "../services/review.service.js";
 import { JOB_CATEGORIES } from "../core/gemini.js";
 import { supabase } from "../core/supabase.js";
+import { sendJobAsWidget } from "../services/widget.service.js";
+import { sendEphemeralReply, makeDisabledButton } from "../core/bot-api-10-4.js";
 
 function renderJobCard(job: DBJob, index: number, total: number) {
   const contacts = extractContactInfo(job.description);
@@ -240,9 +242,14 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       
       keyboard.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
     } else {
-      keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:all:0`).row();
+      if (job.openings <= 0) {
+        keyboard.add(makeDisabledButton("🔒 Bo‘sh o‘rin qolmagan (To‘lgan)") as any).row();
+      } else {
+        keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:all:0`).row();
+      }
     }
 
+    keyboard.text("📱 Interaktiv Vidjet (Bot API 10.4)", `worker:widget:${job.id}`).row();
     keyboard.text("🔍 Barcha ishlarni ko‘rish", "worker:feed:all:0");
 
     await ctx.reply(text, {
@@ -251,7 +258,7 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
     });
   });
 
-  // Handle external job contact info
+  // Handle external job contact info with Ephemeral Message (Bot API 10.4)
   mainBot.callbackQuery(/^worker:contact_ext:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery().catch(() => {});
     const jobId = ctx.match[1];
@@ -276,13 +283,53 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       .filter(Boolean)
       .join("\n");
 
-    const kb = new InlineKeyboard();
-    
+    if (ctx.callbackQuery?.id) {
+      // Send ephemeral message visible only to the requester
+      await sendEphemeralReply(mainBot, ctx.callbackQuery.id, contactMsg, {
+        chatId: ctx.chat?.id,
+        parseMode: "HTML",
+      });
+    } else {
+      await ctx.reply(contactMsg, {
+        parse_mode: "HTML",
+      });
+    }
+  });
 
-    await ctx.reply(contactMsg, {
-      parse_mode: "HTML",
-      reply_markup: kb.inline_keyboard.length > 0 ? kb : undefined,
-    });
+  // View job as native Bot API 10.4 HTML Widget
+  mainBot.callbackQuery(/^worker:widget:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery("📱 Vidjet yuklanmoqda...").catch(() => {});
+    const jobId = ctx.match[1];
+    const job = await getJobById(jobId);
+    if (!job) {
+      await ctx.reply("E’lon topilmadi.");
+      return;
+    }
+    if (ctx.chat?.id) {
+      try {
+        await sendJobAsWidget(mainBot, ctx.chat.id, job);
+      } catch (err: any) {
+        console.error("sendJobAsWidget error:", err);
+        await ctx.reply("📱 Ushbu qurilmada yoki muhitda vidjet ko‘rsatishda xatolik yuz berdi. Iltimos, Telegram ilovangizni yangilang.");
+      }
+    }
+  });
+
+  // Command: /widget - view latest job in native widget format
+  mainBot.command("widget", async (ctx) => {
+    const { jobs } = await getPublishedJobs({ limit: 1 });
+    if (!jobs || jobs.length === 0) {
+      await ctx.reply("Hozircha faol ishlar mavjud emas.");
+      return;
+    }
+    if (ctx.chat?.id) {
+      try {
+        await sendJobAsWidget(mainBot, ctx.chat.id, jobs[0]);
+      } catch (err: any) {
+        console.error("sendJobAsWidget /widget error:", err);
+        await ctx.reply("📱 Vidjet yuborishda xatolik. Iltimos Telegram ilovangizni yangilang.");
+      }
+    }
   });
 
   // Feed / Ishlarni ko'rish
@@ -366,8 +413,14 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       
       keyboard.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
     } else {
-      keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:${categoryParam}:${offset}`).row();
+      if (job.openings <= 0) {
+        keyboard.add(makeDisabledButton("🔒 Bo‘sh o‘rin qolmagan (To‘lgan)") as any).row();
+      } else {
+        keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:${categoryParam}:${offset}`).row();
+      }
     }
+
+    keyboard.text("📱 Interaktiv Vidjet (Bot API 10.4)", `worker:widget:${job.id}`).row();
 
     const shareText = encodeURIComponent(`⚡️ Toshkentda yangi kunlik ish: "${job.title}" (${job.pay_amount.toLocaleString()} so‘m)! Birga boramizmi? 👇`);
     const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/jobtopuzbot?start=job_${job.id}`)}&text=${shareText}`;
@@ -485,8 +538,14 @@ export function registerWorkerHandlers(mainBot: Bot<MyContext>) {
       }
       keyboard.text("📞 Bog‘lanish ma’lumotlari", `worker:contact_ext:${job.id}`).row();
     } else {
-      keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:dist_${district}:${offset}`).row();
+      if (job.openings <= 0) {
+        keyboard.add(makeDisabledButton("🔒 Bo‘sh o‘rin qolmagan (To‘lgan)") as any).row();
+      } else {
+        keyboard.text("✋ Ariza yuborish", `worker:apply:${job.id}:dist_${district}:${offset}`).row();
+      }
     }
+
+    keyboard.text("📱 Interaktiv Vidjet (Bot API 10.4)", `worker:widget:${job.id}`).row();
 
     const distShareText = encodeURIComponent(`⚡️ Toshkentda (${district}) yangi kunlik ish: "${job.title}" (${job.pay_amount.toLocaleString()} so‘m)! Birga boramizmi? 👇`);
     const distShareUrl = `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/jobtopuzbot?start=job_${job.id}`)}&text=${distShareText}`;

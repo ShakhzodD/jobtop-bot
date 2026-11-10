@@ -35,6 +35,7 @@ import { registerStartHandlers } from "./handlers/start.handler.js";
 import { registerWorkerHandlers } from "./handlers/worker.handler.js";
 import { registerEmployerHandlers } from "./handlers/employer.handler.js";
 import { registerAdminHandlers } from "./handlers/admin.handler.js";
+import { handleWidgetQuery } from "./services/widget.service.js";
 
 // Instant callback query response & loading state middleware
 bot.use(async (ctx, next) => {
@@ -42,6 +43,14 @@ bot.use(async (ctx, next) => {
   if (tid) {
     touchUserActivity(tid).catch(() => {});
   }
+
+  // Telegram Bot API 10.4: Handle incoming Widget Queries
+  const widgetQuery = (ctx.update as any)?.widget_query;
+  if (widgetQuery) {
+    await handleWidgetQuery(bot, widgetQuery);
+    return;
+  }
+
   return next();
 });
 
